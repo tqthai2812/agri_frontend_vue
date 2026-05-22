@@ -1,0 +1,205 @@
+@import "tailwindcss";
+
+@theme {
+    --color-primary: #fc1919;
+    --color-primary-dark: #e01414;
+    --color-danger: #dc2626;
+    --color-warning: #f59e0b;
+    --color-warning-dark: #b45309;
+    --color-success: #16a34a;
+    --color-info: #17a2b8;
+
+    --color-border: #e9ecef;
+    --color-border-light: #f1f3f5;
+    --color-surface: #ffffff;
+    --color-bg: #f8f9fa;
+
+    --color-text: #212529;
+    --color-text-sec: #495057;
+    --color-text-light: #6c757d;
+}
+
+.dark {
+    --color-primary: #fc1919;
+    --color-primary-dark: #e01414;
+    --color-danger: #dc3545;
+    --color-warning: #ffc107;
+    --color-success: #28a745;
+    --color-info: #17a2b8;
+
+    --color-border: #334155;
+    --color-border-light: #2d3748;
+    --color-surface: #1e1e1e;
+    --color-bg: #121212;
+
+    --color-text: #f1f5f9;
+    --color-text-sec: #cbd5e1;
+    --color-text-light: #94a3b8;
+}
+
+/* Responsive font-size - dựa trên html */
+/* @layer base {
+    html {
+        font-size: 14px;
+    }
+
+    @media (min-width: 640px) {
+        html {
+            font-size: 15px;
+        }
+    }
+
+    @media (min-width: 768px) {
+        html {
+            font-size: 16px;
+        }
+    }
+
+    @media (min-width: 1024px) {
+        html {
+            font-size: 17px;
+        }
+    }
+
+    @media (min-width: 1280px) {
+        html {
+            font-size: 18px;
+        }
+    }
+
+    @media (min-width: 1536px) {
+        html {
+            font-size: 19px;
+        }
+    }
+
+    body {
+        @apply bg-bg text-text font-['Plus_Jakarta_Sans'];
+    }
+} */
+
+/* Buttons */
+.btn-primary {
+    @apply bg-primary text-white px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-primary-dark transition shadow-sm;
+}
+
+.btn-primary-sm {
+    @apply bg-primary text-white px-3 py-1.5 rounded-lg text-sm font-semibold flex items-center gap-2 hover:bg-primary-dark transition;
+}
+
+.btn-outline {
+    @apply bg-transparent border border-border text-text-sec px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:bg-bg transition;
+}
+
+.btn-outline-sm {
+    @apply bg-transparent border border-border text-text-sec px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-1 hover:bg-bg;
+}
+
+.btn-outline-icon {
+    @apply w-8 h-8 rounded-lg border border-border flex items-center justify-center hover:bg-primary/10 hover:text-primary transition;
+}
+
+.btn-danger-icon {
+    @apply w-8 h-8 rounded-lg bg-danger/10 text-danger flex items-center justify-center hover:bg-danger/20 transition;
+}
+
+.btn-danger-sm {
+    @apply bg-danger/10 text-danger px-3 py-1.5 rounded-md text-sm font-semibold flex items-center gap-2 hover:bg-danger/20 transition;
+}
+
+.btn-warning-sm {
+    @apply bg-warning/20 text-warning-dark px-3 py-1.5 rounded-md text-sm font-semibold flex items-center justify-center gap-2 hover:bg-warning/30;
+}
+
+/* Badges */
+.badge-active {
+    @apply bg-success/10 text-success px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+.badge-inactive {
+    @apply bg-danger/10 text-danger px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+.badge-gray {
+    @apply bg-gray-500/10 text-text-light px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+.badge-pending {
+    background-color: rgba(255, 193, 7, 0.15);
+    color: #b08000;
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+.dark .badge-pending {
+    color: #ffc107;
+}
+
+.badge-info-b {
+    background-color: rgba(23, 162, 184, 0.12);
+    color: #17a2b8;
+    @apply px-2 py-0.5 rounded-full text-xs font-semibold;
+}
+
+/* Form */
+.form-label {
+    @apply block text-sm font-semibold text-text mb-1.5;
+}
+
+.form-control {
+    @apply w-full px-3 py-2.5 rounded-lg border border-border bg-surface text-text focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition;
+}
+
+.filter-select {
+    @apply bg-surface border border-border rounded-lg px-3 py-2 text-sm text-text-sec outline-none;
+}
+
+/* Upload area */
+.upload-area {
+    @apply border-2 border-dashed border-border rounded-xl p-6 text-center cursor-pointer hover:border-primary hover:bg-primary/5 transition;
+}
+
+/* Toggle switch */
+.toggle {
+    @apply relative w-11 h-6 cursor-pointer;
+}
+
+.toggle input {
+    @apply opacity-0 w-0 h-0;
+}
+
+.toggle-slider {
+    @apply absolute inset-0 rounded-full bg-border transition;
+}
+
+.toggle-slider::before {
+    content: '';
+    @apply absolute w-4 h-4 rounded-full bg-white left-1 bottom-1 transition;
+}
+
+input:checked+.toggle-slider {
+    @apply bg-primary;
+}
+
+input:checked+.toggle-slider::before {
+    @apply translate-x-5;
+}
+
+/* Pagination */
+.page-btn {
+    @apply min-w-[34px] h-[34px] rounded-lg border border-border bg-surface flex items-center justify-center text-sm cursor-pointer hover:border-primary hover:text-primary disabled:opacity-50;
+}
+
+.page-btn.active {
+    @apply bg-primary border-primary text-white;
+}
+
+/* Sidebar mobile transition */
+.sidebar-mobile-enter-active,
+.sidebar-mobile-leave-active {
+    transition: transform 0.3s ease;
+}
+
+.sidebar-mobile-enter-from,
+.sidebar-mobile-leave-to {
+    transform: translateX(-100%);
+}

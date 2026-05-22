@@ -24,15 +24,17 @@
           :class="collapsed && !isMobile ? 'opacity-0' : ''">
           {{ section.title }}
         </div>
-        <a v-for="item in section.items" :key="item.name" href="#" @click.prevent="$emit('navigate', item.name)"
+        <RouterLink v-for="item in section.items" :key="item.name" :to="{ name: item.name }"
           class="flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all" :class="[
-            currentPage === item.name
+            route.name === item.name
               ? 'bg-primary/10 text-primary font-semibold relative before:absolute before:left-0 before:top-1/2 before:-translate-y-1/2 before:w-1 before:h-1/2 before:bg-primary before:rounded-r'
               : 'text-text-sec hover:bg-primary/10 hover:text-primary'
-          ]">
+          ]" @click="handleNavigate">
           <Icon :icon="item.icon" class="text-xl shrink-0" />
-          <span :class="collapsed && !isMobile ? 'hidden' : ''">{{ item.label }}</span>
-        </a>
+          <span :class="collapsed && !isMobile ? 'hidden' : ''">
+            {{ item.label }}
+          </span>
+        </RouterLink>
       </div>
     </nav>
 
@@ -50,15 +52,23 @@
 
 <script setup>
 import { Icon } from '@iconify/vue'
+import { useRoute } from "vue-router";
+import { useAppStore } from '@/stores/appStore'
 
 defineProps({
-  currentPage: String,
   collapsed: Boolean,
   mobileOpen: Boolean,
   isMobile: Boolean
 })
 
-defineEmits(['navigate'])
+const route = useRoute()
+const store = useAppStore()
+
+const handleNavigate = () => {
+  if (store.isMobile) {
+    store.mobileSidebarOpen = false;
+  }
+};
 
 const navSections = [
   {

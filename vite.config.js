@@ -13,4 +13,18 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./src", import.meta.url)),
     },
   },
+  server: {
+    proxy: {
+      // Cấu hình cho các request bắt đầu bằng /sanctum
+      "/sanctum": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      // Cấu hình cho các request bắt đầu bằng /api
+      "/api": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+    },
+  },
 });

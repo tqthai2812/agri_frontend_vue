@@ -5,11 +5,13 @@ const commonConfig = {
     "Content-Type": "application/json",
     Accept: "application/json",
   },
+  withCredentials: true,
+  withXSRFToken: true,
 };
 
-export default (baseURL) => {
+export default function createApiClient(baseURL = "") {
   return axios.create({
     baseURL,
     ...commonConfig,
   });
-};
+}

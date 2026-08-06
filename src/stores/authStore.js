@@ -10,7 +10,7 @@ export const useAuthStore = defineStore("auth", () => {
   const isLoggedIn = computed(() => isAuthenticated.value && !!user.value);
 
   const isAdmin = computed(() => {
-    return user.value?.role === "admin";
+    return user.value?.roles?.includes("admin") || user.value?.role === "admin";
   });
 
   function saveUserToStorage(userData) {
@@ -25,6 +25,14 @@ export const useAuthStore = defineStore("auth", () => {
     user.value = null;
     isAuthenticated.value = false;
     localStorage.removeItem("auth_user");
+  }
+
+  function hasRole(role) {
+    return user.value?.roles?.includes(role) || user.value?.role === role;
+  }
+
+  function hasPermission(permission) {
+    return user.value?.permissions?.includes(permission);
   }
 
   function loadUserFromStorage() {
@@ -183,6 +191,8 @@ export const useAuthStore = defineStore("auth", () => {
 
     isLoggedIn,
     isAdmin,
+    hasRole,
+    hasPermission,
 
     sendRegisterCode,
     verifyRegisterCode,

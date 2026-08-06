@@ -177,17 +177,27 @@ async function handleLogin() {
         const redirect = route.query.redirect;
 
         // Nếu là admin
-        if (authStore.isAdmin) {
-            // Nếu trước đó admin đang cố vào trang admin thì quay lại trang đó
-            if (redirect && String(redirect).startsWith("/admin")) {
-                router.push(String(redirect));
-                return;
-            }
-
-            // Còn không thì về dashboard admin
+        if (authStore.hasPermission("dashboard.view")) {
             router.push({ name: "admin-dashboard" });
             return;
         }
+
+        if (authStore.hasPermission("product.view")) {
+            router.push({ name: "admin-products" });
+            return;
+        }
+
+        if (authStore.hasPermission("category.view")) {
+            router.push({ name: "admin-categories" });
+            return;
+        }
+
+        if (authStore.hasPermission("role.view")) {
+            router.push({ name: "admin-roles" });
+            return;
+        }
+
+        router.push({ name: "profile" });
 
         // Nếu là user thường
         if (redirect && !String(redirect).startsWith("/admin")) {

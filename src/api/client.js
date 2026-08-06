@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const apiClient = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || "http://127.0.0.1:8000",
+  baseURL: import.meta.env.VITE_API_URL || "",
   headers: {
     "Content-Type": "application/json",
     Accept: "application/json",
@@ -23,6 +23,10 @@ apiClient.interceptors.response.use(
       if (window.location.pathname !== "/login") {
         window.location.href = "/login";
       }
+    }
+
+    if (status === 403) {
+      console.warn("Bạn không có quyền thực hiện chức năng này.");
     }
 
     if (status === 419) {

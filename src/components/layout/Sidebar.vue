@@ -128,7 +128,8 @@ const navSections = [
       { name: "admin-products", label: "Quản lý sản phẩm", icon: "solar:bag-bold-duotone" },
       { name: "admin-categories", label: "Quản lý danh mục", icon: "solar:sort-bold-duotone" },
       { name: "admin-artisans", label: "Quản lý người dùng", icon: "solar:users-group-rounded-bold-duotone" },
-      { name: "admin-orders", label: "Quản lý đơn hàng", icon: "solar:cart-large-2-bold-duotone" }
+      { name: "admin-orders", label: "Quản lý đơn hàng", icon: "solar:cart-large-2-bold-duotone" },
+      { name: "admin-roles", label: "Phân quyền", icon: "solar:shield-bold-duotone" }
     ]
   },
   {

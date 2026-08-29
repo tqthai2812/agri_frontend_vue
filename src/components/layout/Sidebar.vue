@@ -129,7 +129,9 @@ const navSections = [
       { name: "admin-categories", label: "Quản lý danh mục", icon: "solar:sort-bold-duotone" },
       { name: "admin-artisans", label: "Quản lý người dùng", icon: "solar:users-group-rounded-bold-duotone" },
       { name: "admin-orders", label: "Quản lý đơn hàng", icon: "solar:cart-large-2-bold-duotone" },
-      { name: "admin-roles", label: "Phân quyền", icon: "solar:shield-bold-duotone" }
+      { name: "admin-roles", label: "Phân quyền", icon: "solar:shield-bold-duotone" },
+      { name: "admin-delivery-methods", label: "Phương thức giao hàng", icon: "solar:delivery-bold-duotone" },
+      { name: "admin-discounts", label: "Quản lý giảm giá", icon: "solar:tag-price-bold-duotone" },
     ]
   },
   {

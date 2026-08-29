@@ -9,6 +9,8 @@ const Gallery = () => import("@/views/Gallery.vue");
 const Articles = () => import("@/views/Articles.vue");
 const Settings = () => import("@/views/Settings.vue");
 const Roles = () => import("@/views/Roles.vue");
+const DeliveryMethods = () => import("@/views/DeliveryMethods.vue");
+const Discounts = () => import("@/views/Discounts.vue");
 
 // ===== Mảng routes gốc (chưa xử lý meta) =====
 const rawAdminRoutes = [
@@ -71,6 +73,24 @@ const rawAdminRoutes = [
     name: "admin-roles",
     component: Roles,
     meta: { title: "Quản lý phân quyền", requiredPermission: "role.view" },
+  },
+  {
+    path: "/admin/delivery-methods",
+    name: "admin-delivery-methods",
+    component: DeliveryMethods,
+    meta: {
+      title: "Phương thức giao hàng",
+      requiredPermission: "delivery-method.view",
+    },
+  },
+  {
+    path: "/admin/discounts",
+    name: "admin-discounts",
+    component: Discounts,
+    meta: {
+      title: "Quản lý giảm giá",
+      requiredPermission: "discount.view",
+    },
   },
 ];
 

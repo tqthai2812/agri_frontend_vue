@@ -172,40 +172,56 @@ async function handleLogin() {
     errorMsg.value = "";
 
     try {
-        await authStore.login(email.value, password.value, remember.value);
+        await authStore.login(
+            email.value,
+            password.value,
+            remember.value,
+        );
 
-        const redirect = route.query.redirect;
+        const redirect =
+            typeof route.query.redirect === "string"
+                ? route.query.redirect
+                : null;
 
-        // Nếu là admin
+        // Nếu người dùng bị đưa tới login từ một trang khác
+        if (redirect) {
+            await router.push(redirect);
+            return;
+        }
+
+        // Trang mặc định theo quyền
         if (authStore.hasPermission("dashboard.view")) {
-            router.push({ name: "admin-dashboard" });
+            await router.push({
+                name: "admin-dashboard",
+            });
             return;
         }
 
         if (authStore.hasPermission("product.view")) {
-            router.push({ name: "admin-products" });
+            await router.push({
+                name: "admin-products",
+            });
             return;
         }
 
         if (authStore.hasPermission("category.view")) {
-            router.push({ name: "admin-categories" });
+            await router.push({
+                name: "admin-categories",
+            });
             return;
         }
 
         if (authStore.hasPermission("role.view")) {
-            router.push({ name: "admin-roles" });
+            await router.push({
+                name: "admin-roles",
+            });
             return;
         }
 
-        router.push({ name: "profile" });
-
-        // Nếu là user thường
-        if (redirect && !String(redirect).startsWith("/admin")) {
-            router.push(String(redirect));
-            return;
-        }
-
-        router.push({ name: "profile" });
+        // Người dùng thường
+        await router.push({
+            name: "profile",
+        });
     } catch (err) {
         errorMsg.value =
             err.response?.data?.message ||

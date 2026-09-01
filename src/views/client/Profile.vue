@@ -1,147 +1,259 @@
+<script setup>
+import { onBeforeUnmount, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { Icon } from '@iconify/vue'
+import { useAuthStore } from '@/stores/authStore'
+import ConfirmModal from '@/components/common/ConfirmModal.vue'
+
+const router = useRouter()
+const authStore = useAuthStore()
+
+const form = reactive({
+    name: 'Trần Quốc Thái',
+    email: 'quocthai09094@gmail.com',
+    phone_number: '0334745378',
+    avatar: 'https://i.pravatar.cc/300?img=12',
+})
+
+const avatarInput = ref(null)
+const avatarPreview = ref(form.avatar)
+const saving = ref(false)
+const message = ref('')
+const showLogoutModal = ref(false)
+
+let objectUrl = null
+
+function chooseAvatar() {
+    avatarInput.value?.click()
+}
+
+function handleAvatar(event) {
+    const file = event.target.files?.[0]
+
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+        window.alert('Vui lòng chọn đúng định dạng ảnh.')
+        return
+    }
+
+    if (file.size > 2 * 1024 * 1024) {
+        window.alert(
+            'Ảnh đại diện không được vượt quá 2MB.',
+        )
+        return
+    }
+
+    if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+    }
+
+    objectUrl = URL.createObjectURL(file)
+    avatarPreview.value = objectUrl
+    form.avatar_file = file
+}
+
+async function saveProfile() {
+    message.value = ''
+    saving.value = true
+
+    try {
+        // Khi nối backend:
+        // const data = new FormData()
+        // data.append('name', form.name)
+        // data.append('phone_number', form.phone_number)
+        //
+        // if (form.avatar_file) {
+        //   data.append('avatar', form.avatar_file)
+        // }
+        //
+        // await apiClient.post('/api/profile', data)
+
+        await new Promise((resolve) =>
+            setTimeout(resolve, 600),
+        )
+
+        message.value = 'Cập nhật hồ sơ thành công.'
+    } finally {
+        saving.value = false
+    }
+}
+
+async function handleLogout() {
+    try {
+        await authStore.logout()
+
+        await router.replace({
+            name: 'login',
+        })
+    } catch (error) {
+        console.error('Lỗi đăng xuất:', error)
+    } finally {
+        showLogoutModal.value = false
+    }
+}
+
+onBeforeUnmount(() => {
+    if (objectUrl) {
+        URL.revokeObjectURL(objectUrl)
+    }
+})
+</script>
+
 <template>
-    <div class="min-h-screen bg-bg p-6">
-        <div class="max-w-5xl mx-auto">
-            <div class="bg-surface rounded-3xl shadow-sm border border-border overflow-hidden">
-                <div class="bg-primary p-8 text-white">
-                    <div class="flex flex-col sm:flex-row sm:items-center gap-5">
-                        <div
-                            class="w-20 h-20 rounded-3xl bg-white/15 flex items-center justify-center text-3xl font-bold">
-                            {{ initials }}
-                        </div>
+    <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <header class="border-b border-slate-100 px-5 py-5 sm:px-7">
+            <div class="flex items-center gap-3">
+                <span class="grid size-10 place-items-center rounded-full bg-[#edf5f0] text-[#07532b]">
+                    <Icon icon="mdi:account-edit-outline" class="text-2xl" />
+                </span>
 
-                        <div>
-                            <h1 class="text-2xl font-bold">
-                                {{ authStore.user?.name || "Tài khoản" }}
-                            </h1>
+                <div>
+                    <h1 class="text-lg font-bold text-[#123d27]">
+                        Hồ sơ của tôi
+                    </h1>
 
-                            <p class="text-white/80 mt-1">
-                                {{ authStore.user?.email || "Chưa có email" }}
-                            </p>
-
-                            <div class="inline-flex items-center gap-2 mt-3 bg-white/15 rounded-full px-3 py-1 text-sm">
-                                <Icon icon="solar:shield-user-bold-duotone" class="text-lg" />
-                                {{ authStore.user?.role || "user" }}
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="p-6 sm:p-8 grid grid-cols-1 lg:grid-cols-3 gap-6">
-                    <div class="lg:col-span-2 space-y-6">
-                        <div class="rounded-2xl border border-border p-6">
-                            <h2 class="text-lg font-bold text-text mb-5">
-                                Thông tin tài khoản
-                            </h2>
-
-                            <div class="space-y-4">
-                                <div class="flex items-center gap-4">
-                                    <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                                        <Icon icon="solar:user-bold-duotone" class="text-2xl text-primary" />
-                                    </div>
-
-                                    <div>
-                                        <p class="text-xs text-text-light">Họ tên</p>
-                                        <p class="font-semibold text-text">{{ authStore.user?.name || "—" }}</p>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-4">
-                                    <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                                        <Icon icon="solar:letter-bold-duotone" class="text-2xl text-primary" />
-                                    </div>
-
-                                    <div>
-                                        <p class="text-xs text-text-light">Email</p>
-                                        <p class="font-semibold text-text">{{ authStore.user?.email || "—" }}</p>
-                                    </div>
-                                </div>
-
-                                <div class="flex items-center gap-4">
-                                    <div class="w-11 h-11 rounded-xl bg-primary/10 flex items-center justify-center">
-                                        <Icon icon="solar:shield-keyhole-bold-duotone" class="text-2xl text-primary" />
-                                    </div>
-
-                                    <div>
-                                        <p class="text-xs text-text-light">Vai trò</p>
-                                        <p class="font-semibold text-text">{{ authStore.user?.role || "user" }}</p>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="rounded-2xl border border-border p-6">
-                            <h2 class="text-lg font-bold text-text mb-2">
-                                Gợi ý
-                            </h2>
-
-                            <p class="text-sm text-text-light leading-relaxed">
-                                Nếu tài khoản này là admin, bạn có thể truy cập bảng điều khiển.
-                                Nếu là user thường, hệ thống có thể điều hướng đến giao diện người dùng riêng.
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="space-y-4">
-                        <RouterLink v-if="authStore.isAdmin" to="/dashboard"
-                            class="btn-primary w-full justify-center py-3 rounded-xl">
-                            <Icon icon="solar:home-2-bold-duotone" class="text-xl" />
-                            Về dashboard
-                        </RouterLink>
-
-                        <RouterLink to="/verify-email"
-                            class="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-semibold text-text-sec hover:bg-primary/10 hover:text-primary transition">
-                            <Icon icon="solar:letter-unread-bold-duotone" class="text-xl" />
-                            Xác thực email
-                        </RouterLink>
-
-                        <button type="button"
-                            class="w-full flex items-center justify-center gap-2 rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-500 hover:bg-red-100 transition"
-                            @click="handleLogout">
-                            <Icon icon="solar:logout-2-bold-duotone" class="text-xl" />
-                            Đăng xuất
-                        </button>
-                    </div>
+                    <p class="mt-0.5 text-xs text-slate-400">
+                        Quản lý thông tin cá nhân để bảo mật
+                        tài khoản.
+                    </p>
                 </div>
             </div>
-        </div>
+        </header>
 
-        <ConfirmModal v-model="showLogoutModal" title="Xác nhận đăng xuất"
-            message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản hiện tại không?" confirm-text="Đăng xuất"
-            cancel-text="Ở lại" loading-text="Đang đăng xuất..." type="danger" icon="solar:logout-2-bold-duotone"
-            :loading="authStore.loading" @confirm="confirmLogout" />
-    </div>
+        <form class="grid gap-8 p-5 sm:p-7 lg:grid-cols-[minmax(0,1fr)_250px]" @submit.prevent="saveProfile">
+            <div class="space-y-5">
+                <div v-if="message"
+                    class="flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-600">
+                    <Icon icon="mdi:check-circle-outline" class="text-xl" />
+
+                    {{ message }}
+                </div>
+
+                <label class="block">
+                    <span class="profile-label">
+                        Họ và tên
+                    </span>
+
+                    <div class="relative">
+                        <Icon icon="mdi:account-outline" class="profile-icon" />
+
+                        <input v-model.trim="form.name" class="profile-input" placeholder="Nhập họ và tên" />
+                    </div>
+                </label>
+
+                <label class="block">
+                    <span class="profile-label">
+                        Email
+                    </span>
+
+                    <div class="relative">
+                        <Icon icon="mdi:email-outline" class="profile-icon" />
+
+                        <input v-model.trim="form.email" type="email" class="profile-input bg-slate-50" readonly />
+                    </div>
+
+                    <small class="mt-1.5 block text-[10px] text-slate-400">
+                        Email đăng nhập không thể tự thay đổi.
+                        Liên hệ hỗ trợ nếu cần cập nhật.
+                    </small>
+                </label>
+
+                <label class="block">
+                    <span class="profile-label">
+                        Số điện thoại
+                    </span>
+
+                    <div class="relative">
+                        <Icon icon="mdi:phone-outline" class="profile-icon" />
+
+                        <input v-model.trim="form.phone_number" inputmode="tel" class="profile-input"
+                            placeholder="Nhập số điện thoại" />
+                    </div>
+                </label>
+
+                <div class="flex flex-wrap items-center gap-3 pt-1">
+                    <button type="submit"
+                        class="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-[#07532b] px-6 text-sm font-bold text-white shadow-[0_9px_22px_rgba(7,83,43,0.18)] transition hover:-translate-y-0.5 hover:bg-[#0a6837] disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="saving">
+                        <Icon :icon="saving
+                            ? 'mdi:loading'
+                            : 'mdi:content-save-outline'
+                            " :class="[
+                                'text-lg',
+                                saving ? 'animate-spin' : '',
+                            ]" />
+
+                        {{
+                            saving
+                                ? 'Đang lưu...'
+                                : 'Lưu thay đổi'
+                        }}
+                    </button>
+
+                    <button type="button"
+                        class="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-red-200 bg-white px-5 text-sm font-bold text-red-500 transition hover:border-red-300 hover:bg-red-50"
+                        @click="showLogoutModal = true">
+                        <Icon icon="mdi:logout" class="text-lg" />
+
+                        Đăng xuất
+                    </button>
+                </div>
+            </div>
+
+            <div class="border-slate-100 lg:border-l lg:pl-8">
+                <div class="flex flex-col items-center text-center">
+                    <div class="relative">
+                        <img :src="avatarPreview" :alt="form.name"
+                            class="size-32 rounded-full border-4 border-[#edf5f0] object-cover shadow-lg" />
+
+                        <button type="button"
+                            class="absolute bottom-1 right-1 grid size-9 place-items-center rounded-full bg-[#ffd326] text-[#07532b] shadow-md ring-4 ring-white transition hover:scale-105"
+                            aria-label="Chọn ảnh đại diện" @click="chooseAvatar">
+                            <Icon icon="mdi:camera-outline" class="text-xl" />
+                        </button>
+                    </div>
+
+                    <strong class="mt-4 text-sm text-[#123d27]">
+                        Ảnh đại diện
+                    </strong>
+
+                    <p class="mt-2 text-[10px] leading-4 text-slate-400">
+                        Dung lượng tối đa 2MB.<br />
+                        Định dạng JPG, JPEG, PNG hoặc WEBP.
+                    </p>
+
+                    <button type="button"
+                        class="mt-4 rounded-full border border-[#9dbba8] px-4 py-2 text-xs font-semibold text-[#07532b] transition hover:bg-[#edf5f0]"
+                        @click="chooseAvatar">
+                        Chọn ảnh
+                    </button>
+
+                    <input ref="avatarInput" type="file" accept="image/png,image/jpeg,image/webp" class="hidden"
+                        @change="handleAvatar" />
+                </div>
+            </div>
+        </form>
+    </section>
+
+    <ConfirmModal v-model="showLogoutModal" title="Xác nhận đăng xuất"
+        message="Bạn có chắc chắn muốn đăng xuất khỏi tài khoản NFarmHouse không?" confirm-text="Đăng xuất"
+        cancel-text="Ở lại" loading-text="Đang đăng xuất..." type="danger" icon="mdi:logout"
+        :loading="authStore.loading" @confirm="handleLogout" />
 </template>
 
-<script setup>
-import { computed, ref } from "vue";
-import { useRouter, RouterLink } from "vue-router";
-import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/authStore";
-import ConfirmModal from "@/components/common/ConfirmModal.vue";
+<style scoped>
+@reference "../../style.css";
 
-const router = useRouter();
-const authStore = useAuthStore();
-
-const showLogoutModal = ref(false);
-
-const initials = computed(() => {
-    const name = authStore.user?.name || authStore.user?.email || "EV";
-    return name
-        .split(" ")
-        .map((item) => item[0])
-        .join("")
-        .slice(0, 2)
-        .toUpperCase();
-});
-
-function handleLogout() {
-    showLogoutModal.value = true;
+.profile-label {
+    @apply mb-2 block text-xs font-semibold text-slate-600;
 }
 
-async function confirmLogout() {
-    showLogoutModal.value = false;
-
-    await authStore.logout();
-    router.push("/login");
+.profile-input {
+    @apply h-12 w-full rounded-xl border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-[#0a7139] focus:ring-4 focus:ring-[#0a7139]/10;
 }
-</script>
+
+.profile-icon {
+    @apply absolute left-3.5 top-1/2 -translate-y-1/2 text-xl text-slate-400;
+}
+</style>

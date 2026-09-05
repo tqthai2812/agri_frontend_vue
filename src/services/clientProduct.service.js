@@ -1,6 +1,10 @@
 import apiClient from "@/api/client";
 
-class ClientHomeService {
+class ClientProductService {
+  getProductFilters() {
+    return apiClient.get("/api/v1/public/product-filters");
+  }
+
   getCategories(params = {}) {
     return apiClient.get("/api/v1/public/categories", { params });
   }
@@ -12,14 +16,6 @@ class ClientHomeService {
   getProduct(id) {
     return apiClient.get(`/api/v1/public/products/${id}`);
   }
-
-  getNews(params = {}) {
-    return apiClient.get("/api/v1/public/news", { params });
-  }
-
-  getNewsDetail(slug) {
-    return apiClient.get(`/api/v1/public/news/${slug}`);
-  }
 }
 
-export default new ClientHomeService();
+export default new ClientProductService();

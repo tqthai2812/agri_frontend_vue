@@ -1,57 +1,84 @@
 <script setup>
-import { computed } from 'vue'
-import { Icon } from '@iconify/vue'
+import { computed } from "vue";
+import { Icon } from "@iconify/vue";
 
 const props = defineProps({
     items: {
         type: Array,
         default: () => [],
     },
-})
+});
 
 const subtotal = computed(() => {
     return props.items.reduce((sum, item) => {
         return (
             sum +
-            Number(item.package?.price || 0) *
+            Number(item.package?.price || item.price || 0) *
             Number(item.quantity || 0)
-        )
-    }, 0)
-})
+        );
+    }, 0);
+});
 
 function productOf(item) {
-    return item.package?.variant?.product || {}
+    return (
+        item.package?.variant?.product ||
+        item.variant?.product ||
+        item.product ||
+        {}
+    );
+}
+
+function variantOf(item) {
+    return (
+        item.package?.variant ||
+        item.variant ||
+        {}
+    );
 }
 
 function imageOf(item) {
-    const product = productOf(item)
-    const images = product.images || []
+    const product = productOf(item);
+    const images = product.images || [];
 
     return (
-        images.find((image) => image.is_primary)
-            ?.image_url ||
+        images.find((image) => image.is_primary)?.image_url ||
         images[0]?.image_url ||
-        product.primary_image
-    )
+        product.primary_image ||
+        "https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=600&q=80"
+    );
+}
+
+function productNameOf(item) {
+    const product = productOf(item);
+
+    return (
+        product.product_name ||
+        product.name ||
+        "Sản phẩm"
+    );
 }
 
 function packageLabel(item) {
-    const pkg = item.package || {}
+    const pkg = item.package || {};
 
     const unitMap = {
-        l: 'lít',
-        piece: 'cái',
-    }
+        kg: "kg",
+        g: "g",
+        ml: "ml",
+        l: "lít",
+        piece: "cái",
+    };
 
-    return `${pkg.size || ''} ${unitMap[pkg.unit] || pkg.unit || ''
-        }`.trim()
+    return `${pkg.size || ""} ${unitMap[pkg.unit] || pkg.unit || ""
+        }`.trim();
 }
 
 function formatVND(value) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-    }).format(Number(value || 0))
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
 }
 </script>
 
@@ -83,8 +110,7 @@ function formatVND(value) {
             <article v-for="item in items" :key="item.id" class="flex gap-4 px-5 py-5 sm:px-6">
                 <div
                     class="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#f6f8f5] p-2 sm:size-24">
-                    <img :src="imageOf(item)" :alt="productOf(item).product_name"
-                        class="h-full w-full object-contain" />
+                    <img :src="imageOf(item)" :alt="productNameOf(item)" class="h-full w-full object-contain" />
                 </div>
 
                 <div
@@ -97,12 +123,12 @@ function formatVND(value) {
                             },
                         }"
                             class="line-clamp-2 text-sm font-semibold leading-5 text-[#123d27] transition hover:text-[#d39f00]">
-                            {{ productOf(item).product_name }}
+                            {{ productNameOf(item) }}
                         </RouterLink>
 
                         <p class="mt-1 text-[11px] text-slate-400">
-                            {{ item.package?.variant?.variant_name }}
-                            · {{ packageLabel(item) }}
+                            {{ variantOf(item).variant_name || variantOf(item).name || "Mặc định" }}
+                            · {{ packageLabel(item) || "Mặc định" }}
                         </p>
 
                         <p v-if="item.package?.sku" class="mt-1 text-[10px] text-slate-400">
@@ -112,7 +138,7 @@ function formatVND(value) {
 
                     <div class="mt-3 text-xs text-slate-500 sm:mt-0 sm:text-right">
                         <span class="sm:hidden">Đơn giá: </span>
-                        {{ formatVND(item.package?.price) }}
+                        {{ formatVND(item.package?.price || item.price) }}
                     </div>
 
                     <div class="mt-1 text-xs text-slate-500 sm:mt-0 sm:text-center">
@@ -122,7 +148,7 @@ function formatVND(value) {
                     <div class="mt-2 font-bold text-[#0a7a3d] sm:mt-0 sm:text-right">
                         {{
                             formatVND(
-                                Number(item.package?.price || 0) *
+                                Number(item.package?.price || item.price || 0) *
                                 Number(item.quantity || 0),
                             )
                         }}

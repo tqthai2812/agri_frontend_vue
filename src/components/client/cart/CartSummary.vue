@@ -1,79 +1,103 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Icon } from '@iconify/vue'
+import { computed, ref, watch } from "vue";
+import { Icon } from "@iconify/vue";
 
 const props = defineProps({
     subtotal: {
         type: Number,
         default: 0,
     },
+
     discountAmount: {
         type: Number,
         default: 0,
     },
+
     shippingEstimate: {
         type: Number,
         default: 0,
     },
+
     total: {
         type: Number,
         default: 0,
     },
+
     selectedCount: {
         type: Number,
         default: 0,
     },
+
     freeShippingThreshold: {
         type: Number,
         default: 1000000,
     },
+
     appliedDiscount: {
         type: Object,
         default: null,
     },
-})
+
+    loading: {
+        type: Boolean,
+        default: false,
+    },
+});
 
 const emit = defineEmits([
-    'apply-discount',
-    'remove-discount',
-    'checkout',
-])
+    "apply-discount",
+    "remove-discount",
+    "checkout",
+]);
 
-const discountCode = ref('')
+const discountCode = ref("");
 
 const missingForFreeShipping = computed(() => {
     return Math.max(
-        props.freeShippingThreshold - props.subtotal,
+        Number(props.freeShippingThreshold || 0) -
+        Number(props.subtotal || 0),
         0,
-    )
-})
+    );
+});
 
 const shippingProgress = computed(() => {
     if (!props.freeShippingThreshold) {
-        return 100
+        return 100;
     }
 
     return Math.min(
-        (props.subtotal / props.freeShippingThreshold) * 100,
+        (Number(props.subtotal || 0) /
+            Number(props.freeShippingThreshold || 1)) *
         100,
-    )
-})
+        100,
+    );
+});
+
+watch(
+    () => props.appliedDiscount,
+    (discount) => {
+        if (discount?.discount_code) {
+            discountCode.value = discount.discount_code;
+        }
+    },
+);
 
 function formatVND(value) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-    }).format(Number(value || 0))
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
 }
 
 function submitDiscount() {
-    const code = discountCode.value.trim().toUpperCase()
+    const code = discountCode.value.trim().toUpperCase();
 
-    if (!code) {
-        return
+    if (!code || props.loading || props.selectedCount === 0) {
+        return;
     }
 
-    emit('apply-discount', code)
+    emit("apply-discount", code);
 }
 </script>
 
@@ -95,7 +119,11 @@ function submitDiscount() {
                 </span>
 
                 <div class="min-w-0 flex-1">
-                    <p v-if="missingForFreeShipping" class="text-xs leading-5 text-[#365846]">
+                    <p v-if="selectedCount === 0" class="text-xs leading-5 text-[#365846]">
+                        Chọn sản phẩm để hệ thống tính phí vận chuyển.
+                    </p>
+
+                    <p v-else-if="missingForFreeShipping" class="text-xs leading-5 text-[#365846]">
                         Mua thêm
                         <strong class="text-[#07532b]">
                             {{ formatVND(missingForFreeShipping) }}
@@ -126,14 +154,18 @@ function submitDiscount() {
                         class="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400" />
 
                     <input v-model="discountCode" type="text" placeholder="Nhập mã ưu đãi"
-                        class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm uppercase outline-none transition placeholder:normal-case focus:border-[#0a7139] focus:ring-4 focus:ring-[#0a7139]/10"
-                        @keyup.enter="submitDiscount" />
+                        class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm uppercase outline-none transition placeholder:normal-case focus:border-[#0a7139] focus:ring-4 focus:ring-[#0a7139]/10 disabled:cursor-not-allowed disabled:bg-slate-50"
+                        :disabled="loading || selectedCount === 0" @keyup.enter="submitDiscount" />
                 </div>
 
                 <button type="button"
-                    class="rounded-xl bg-[#e9b817] px-4 text-xs font-bold text-[#073f22] transition hover:bg-[#ffd329]"
-                    @click="submitDiscount">
-                    Áp dụng
+                    class="rounded-xl bg-[#e9b817] px-4 text-xs font-bold text-[#073f22] transition hover:bg-[#ffd329] disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="loading || selectedCount === 0 || !discountCode.trim()" @click="submitDiscount">
+                    {{
+                        loading
+                            ? "Đang..."
+                            : "Áp dụng"
+                    }}
                 </button>
             </div>
 
@@ -153,14 +185,15 @@ function submitDiscount() {
                     </div>
                 </div>
 
-                <button type="button" class="text-xs font-semibold text-red-500 hover:underline"
-                    @click="emit('remove-discount')">
+                <button type="button"
+                    class="text-xs font-semibold text-red-500 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                    :disabled="loading" @click="emit('remove-discount')">
                     Bỏ mã
                 </button>
             </div>
 
             <p class="mt-2 text-[10px] text-slate-400">
-                Dùng thử mã <strong>NFARM10</strong>
+                Mã hợp lệ sẽ được backend kiểm tra theo trạng thái, hạn dùng, giới hạn sử dụng và đơn tối thiểu.
             </p>
         </div>
 
@@ -169,6 +202,7 @@ function submitDiscount() {
         <dl class="space-y-3 text-sm">
             <div class="flex items-center justify-between gap-4 text-slate-600">
                 <dt>Tạm tính</dt>
+
                 <dd class="font-semibold text-slate-800">
                     {{ formatVND(subtotal) }}
                 </dd>
@@ -176,6 +210,7 @@ function submitDiscount() {
 
             <div class="flex items-center justify-between gap-4 text-slate-600">
                 <dt>Giảm giá</dt>
+
                 <dd class="font-semibold text-[#0a7a3d]">
                     -{{ formatVND(discountAmount) }}
                 </dd>
@@ -191,7 +226,7 @@ function submitDiscount() {
                     {{
                         shippingEstimate
                             ? formatVND(shippingEstimate)
-                            : 'Miễn phí'
+                            : "Miễn phí"
                     }}
                 </dd>
             </div>
@@ -210,14 +245,14 @@ function submitDiscount() {
                 </strong>
 
                 <span class="text-[10px] text-slate-400">
-                    Đã bao gồm thuế (nếu có)
+                    Tổng cuối cùng sẽ được backend tính lại khi đặt hàng
                 </span>
             </div>
         </div>
 
         <button type="button"
             class="mt-5 flex h-[52px] w-full items-center justify-center gap-2 rounded-full bg-[#07532b] px-5 text-sm font-bold text-white shadow-[0_12px_28px_rgba(7,83,43,0.22)] transition hover:-translate-y-0.5 hover:bg-[#0a6837] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:translate-y-0"
-            :disabled="selectedCount === 0" @click="emit('checkout')">
+            :disabled="selectedCount === 0 || loading" @click="emit('checkout')">
             Tiến hành thanh toán
 
             <span class="grid size-7 place-items-center rounded-full bg-[#ffd326] text-[#07532b]">

@@ -1,6 +1,6 @@
 <script setup>
-import { ref } from 'vue'
-import { Icon } from '@iconify/vue'
+import { ref } from "vue";
+import { Icon } from "@iconify/vue";
 
 defineProps({
     popularArticles: {
@@ -13,31 +13,51 @@ defineProps({
     },
     activeTag: {
         type: [String, Number],
-        default: 'all',
+        default: "all",
     },
-})
+});
 
 const emit = defineEmits([
-    'open',
-    'select-tag',
-    'subscribe',
-])
+    "open",
+    "select-tag",
+    "subscribe",
+]);
 
-const email = ref('')
+const email = ref("");
 
 function submitSubscribe() {
-    if (!email.value.trim()) return
+    if (!email.value.trim()) {
+        return;
+    }
 
-    emit('subscribe', email.value.trim())
-    email.value = ''
+    emit("subscribe", email.value.trim());
+    email.value = "";
 }
 
 function formatDate(value) {
-    return new Intl.DateTimeFormat('vi-VN', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-    }).format(new Date(value))
+    if (!value) {
+        return "—";
+    }
+
+    const date = new Date(value);
+
+    if (Number.isNaN(date.getTime())) {
+        return "—";
+    }
+
+    return new Intl.DateTimeFormat("vi-VN", {
+        day: "2-digit",
+        month: "2-digit",
+        year: "numeric",
+    }).format(date);
+}
+
+function displayDate(article) {
+    if (article.published_date) {
+        return article.published_date;
+    }
+
+    return formatDate(article.published_at || article.created_at);
 }
 </script>
 
@@ -52,11 +72,11 @@ function formatDate(value) {
                 </h2>
             </header>
 
-            <div class="divide-y divide-slate-100 px-5">
+            <div v-if="popularArticles.length" class="divide-y divide-slate-100 px-5">
                 <button v-for="(article, index) in popularArticles" :key="article.id" type="button"
                     class="group flex w-full gap-3 py-4 text-left" @click="$emit('open', article)">
                     <span class="text-2xl font-black leading-none text-slate-200 transition group-hover:text-[#ffd326]">
-                        0{{ index + 1 }}
+                        {{ String(index + 1).padStart(2, "0") }}
                     </span>
 
                     <span class="min-w-0">
@@ -67,10 +87,14 @@ function formatDate(value) {
 
                         <small class="mt-1 flex items-center gap-1 text-[9px] text-slate-400">
                             <Icon icon="mdi:calendar-blank-outline" />
-                            {{ formatDate(article.created_at) }}
+                            {{ displayDate(article) }}
                         </small>
                     </span>
                 </button>
+            </div>
+
+            <div v-else class="px-5 py-8 text-center text-xs text-slate-400">
+                Chưa có bài viết nổi bật.
             </div>
         </section>
 
@@ -83,17 +107,21 @@ function formatDate(value) {
                 </h2>
             </div>
 
-            <div class="mt-4 flex flex-wrap gap-2">
+            <div v-if="tags.length" class="mt-4 flex flex-wrap gap-2">
                 <button v-for="tag in tags" :key="tag.id" type="button"
-                    class="rounded-full border px-3 py-1.5 text-[9px] font-semibold transition" :class="String(activeTag) === String(tag.id)
+                    class="rounded-full border px-3 py-1.5 text-[9px] font-semibold transition"
+                    :class="String(activeTag) === String(tag.id)
                         ? 'border-[#07532b] bg-[#07532b] text-white'
-                        : 'border-slate-200 text-slate-500 hover:border-[#9dbba8] hover:bg-[#edf5f0] hover:text-[#07532b]'
-                        " @click="$emit('select-tag', tag.id)">
+                        : 'border-slate-200 text-slate-500 hover:border-[#9dbba8] hover:bg-[#edf5f0] hover:text-[#07532b]'" @click="$emit('select-tag', tag.id)">
                     #{{ tag.tag_name }}
                     <span class="opacity-60">
                         {{ tag.count }}
                     </span>
                 </button>
+            </div>
+
+            <div v-else class="mt-4 rounded-2xl bg-slate-50 p-4 text-center text-xs text-slate-400">
+                Chưa có chủ đề.
             </div>
         </section>
 
@@ -108,8 +136,7 @@ function formatDate(value) {
             </h2>
 
             <p class="relative mt-2 text-[10px] leading-5 text-white/65">
-                Cập nhật kỹ thuật canh tác, sâu bệnh và ưu
-                đãi vật tư mới nhất.
+                Cập nhật kỹ thuật canh tác, sâu bệnh và ưu đãi vật tư mới nhất.
             </p>
 
             <form class="relative mt-4" @submit.prevent="submitSubscribe">

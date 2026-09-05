@@ -1,40 +1,46 @@
 <script setup>
-import { Icon } from '@iconify/vue'
+import { Icon } from "@iconify/vue";
 
 defineProps({
     merchandiseTotal: {
         type: Number,
         default: 0,
     },
+
     shippingCost: {
         type: Number,
         default: 0,
     },
+
     discountAmount: {
         type: Number,
         default: 0,
     },
+
     total: {
         type: Number,
         default: 0,
     },
+
     disabled: {
         type: Boolean,
         default: false,
     },
+
     loading: {
         type: Boolean,
         default: false,
     },
-})
+});
 
-defineEmits(['place-order'])
+defineEmits(["place-order"]);
 
 function formatVND(value) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
-    }).format(Number(value || 0))
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
+        maximumFractionDigits: 0,
+    }).format(Number(value || 0));
 }
 </script>
 
@@ -52,6 +58,7 @@ function formatVND(value) {
         <dl class="mt-5 space-y-3.5 text-sm">
             <div class="flex justify-between gap-4 text-slate-500">
                 <dt>Tổng tiền hàng</dt>
+
                 <dd class="font-semibold text-slate-700">
                     {{ formatVND(merchandiseTotal) }}
                 </dd>
@@ -59,17 +66,19 @@ function formatVND(value) {
 
             <div class="flex justify-between gap-4 text-slate-500">
                 <dt>Phí vận chuyển</dt>
+
                 <dd class="font-semibold text-slate-700">
                     {{
                         shippingCost
                             ? formatVND(shippingCost)
-                            : 'Miễn phí'
+                            : "Miễn phí"
                     }}
                 </dd>
             </div>
 
             <div class="flex justify-between gap-4 text-slate-500">
                 <dt>Voucher NFarmHouse</dt>
+
                 <dd class="font-semibold text-[#0a7a3d]">
                     -{{ formatVND(discountAmount) }}
                 </dd>
@@ -89,7 +98,7 @@ function formatVND(value) {
                 </strong>
 
                 <span class="text-[10px] text-slate-400">
-                    Đã bao gồm thuế (nếu có)
+                    Backend sẽ kiểm tra lại trước khi tạo đơn
                 </span>
             </div>
         </div>
@@ -99,7 +108,7 @@ function formatVND(value) {
             :disabled="disabled || loading" @click="$emit('place-order')">
             <Icon v-if="loading" icon="mdi:loading" class="animate-spin text-xl" />
 
-            {{ loading ? 'Đang đặt hàng...' : 'Đặt hàng' }}
+            {{ loading ? "Đang đặt hàng..." : "Đặt hàng" }}
 
             <span v-if="!loading" class="grid size-7 place-items-center rounded-full bg-[#ffd326] text-[#07532b]">
                 <Icon icon="mdi:arrow-right" class="text-lg" />
@@ -107,8 +116,8 @@ function formatVND(value) {
         </button>
 
         <p class="mt-4 text-center text-[10px] leading-4 text-slate-400">
-            Bằng việc đặt hàng, bạn đồng ý với điều khoản
-            sử dụng và chính sách bảo mật của NFarmHouse.
+            Bằng việc đặt hàng, bạn đồng ý với điều khoản sử dụng
+            và chính sách bảo mật của NFarmHouse.
         </p>
 
         <div

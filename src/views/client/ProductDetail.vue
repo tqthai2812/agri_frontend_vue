@@ -4,457 +4,231 @@ import {
     onBeforeUnmount,
     ref,
     watch,
-} from 'vue'
+} from "vue";
 
-import { useRoute } from 'vue-router'
-import { Icon } from '@iconify/vue'
+import { useRoute, useRouter } from "vue-router";
+import { Icon } from "@iconify/vue";
 
-import ProductGallery from '@/components/client/product/ProductGallery.vue'
-import ProductPurchasePanel from '@/components/client/product/ProductPurchasePanel.vue'
-import ProductContentTabs from '@/components/client/product/ProductContentTabs.vue'
+import ProductGallery from "@/components/client/product/ProductGallery.vue";
+import ProductPurchasePanel from "@/components/client/product/ProductPurchasePanel.vue";
+import ProductContentTabs from "@/components/client/product/ProductContentTabs.vue";
+import ClientProductService from "@/services/clientProduct.service";
+import { useCartStore } from "@/stores/cartStore";
 
-const route = useRoute()
+const route = useRoute();
+const router = useRouter();
+const cartStore = useCartStore();
 
-const loading = ref(false)
-const product = ref(null)
-const reviews = ref([])
-const wishlisted = ref(false)
-const toastMessage = ref('')
+const loading = ref(false);
+const loadingRelated = ref(false);
+const product = ref(null);
+const reviews = ref([]);
+const relatedProducts = ref([]);
+const wishlisted = ref(false);
+const toastMessage = ref("");
+const errorMessage = ref("");
 
-let toastTimer = null
-
-const demoProduct = {
-    id: 1,
-    category_id: 1,
-    subcategory_id: 2,
-    origin_id: 1,
-
-    product_name:
-        'Thuốc trừ bệnh đạo ôn Rice Guard',
-
-    description:
-        'Rice Guard là sản phẩm hỗ trợ phòng trừ bệnh đạo ôn trên cây lúa. Sản phẩm được thiết kế để sử dụng trong nhiều giai đoạn sinh trưởng, giúp bảo vệ lá và duy trì sức phát triển của cây.\n\nSản phẩm có nhiều quy cách bán khác nhau để phù hợp với diện tích canh tác và nhu cầu sử dụng thực tế.',
-
-    usage_instructions:
-        'Lắc kỹ trước khi sử dụng. Pha sản phẩm theo đúng liều lượng được ghi trên nhãn. Phun đều lên bề mặt lá vào sáng sớm hoặc chiều mát. Không phun khi trời sắp mưa hoặc có gió mạnh.',
-
-    safety_warning:
-        'Để xa tầm tay trẻ em. Mang găng tay, khẩu trang và đồ bảo hộ khi sử dụng. Không ăn uống hoặc hút thuốc trong quá trình pha và phun sản phẩm. Thu gom bao bì đúng nơi quy định.',
-
-    average_rating: 4.7,
-    review_count: 3,
-    is_show: true,
-
-    category: {
-        id: 1,
-        category_name:
-            'Thuốc bảo vệ thực vật',
-        category_slug:
-            'thuoc-bao-ve-thuc-vat',
-    },
-
-    subcategory: {
-        id: 2,
-        subcategory_name:
-            'Thuốc trừ bệnh',
-        subcategory_slug:
-            'thuoc-tru-benh',
-    },
-
-    origin: {
-        id: 1,
-        origin_name: 'Việt Nam',
-        origin_image: '',
-    },
-
-    images: [
-        {
-            id: 1,
-            image_url:
-                'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1200&q=90',
-            is_primary: true,
-            sort_order: 1,
-        },
-        {
-            id: 2,
-            image_url:
-                'https://images.unsplash.com/photo-1530836369250-ef72a3f5cda8?auto=format&fit=crop&w=1200&q=90',
-            is_primary: false,
-            sort_order: 2,
-        },
-        {
-            id: 3,
-            image_url:
-                'https://images.unsplash.com/photo-1523741543316-beb7fc7023d8?auto=format&fit=crop&w=1200&q=90',
-            is_primary: false,
-            sort_order: 3,
-        },
-    ],
-
-    variants: [
-        {
-            id: 11,
-            product_id: 1,
-            variant_name: 'Chai',
-
-            packages: [
-                {
-                    id: 111,
-                    variant_id: 11,
-                    sku: 'RG-250ML',
-                    size: 250,
-                    unit: 'ml',
-                    price: 100000,
-                    quantity_available: 36,
-                    barcode: '8930000011111',
-                    box_barcode: '8930000091111',
-                },
-                {
-                    id: 112,
-                    variant_id: 11,
-                    sku: 'RG-500ML',
-                    size: 500,
-                    unit: 'ml',
-                    price: 185000,
-                    quantity_available: 18,
-                    barcode: '8930000011128',
-                    box_barcode: '8930000091128',
-                },
-                {
-                    id: 113,
-                    variant_id: 11,
-                    sku: 'RG-1L',
-                    size: 1,
-                    unit: 'l',
-                    price: 340000,
-                    quantity_available: 0,
-                    barcode: '8930000011135',
-                    box_barcode: '8930000091135',
-                },
-            ],
-        },
-
-        {
-            id: 12,
-            product_id: 1,
-            variant_name: 'Thùng nguyên kiện',
-
-            packages: [
-                {
-                    id: 121,
-                    variant_id: 12,
-                    sku: 'RG-BOX-24',
-                    size: 24,
-                    unit: 'piece',
-                    price: 2250000,
-                    quantity_available: 5,
-                    barcode: '8930000011210',
-                    box_barcode: '8930000091210',
-                },
-            ],
-        },
-    ],
-
-    tags: [
-        {
-            id: 1,
-            tag_name: 'Đạo ôn',
-        },
-        {
-            id: 2,
-            tag_name: 'Cây lúa',
-        },
-        {
-            id: 3,
-            tag_name: 'Thuốc trừ bệnh',
-        },
-    ],
-}
-
-const demoReviews = [
-    {
-        id: 1,
-        user_id: 3,
-        product_id: 1,
-        parent_id: null,
-        content:
-            'Sản phẩm đóng gói cẩn thận, hướng dẫn rõ ràng và giao hàng nhanh.',
-        rating: 5,
-        created_at:
-            '2026-08-28T09:30:00Z',
-
-        user: {
-            id: 3,
-            name: 'Quốc Thái',
-            avatar: '',
-        },
-
-        replies: [
-            {
-                id: 4,
-                parent_id: 1,
-                content:
-                    'NFarmHouse cảm ơn bạn đã tin tưởng sản phẩm.',
-                rating: null,
-
-                user: {
-                    id: 2,
-                    name: 'NFarmHouse',
-                },
-            },
-        ],
-    },
-
-    {
-        id: 2,
-        user_id: 5,
-        product_id: 1,
-        parent_id: null,
-        content:
-            'Mình mua quy cách chai 500ml, sản phẩm đúng mô tả.',
-        rating: 5,
-        created_at:
-            '2026-08-26T11:15:00Z',
-
-        user: {
-            id: 5,
-            name: 'Nguyễn Minh',
-            avatar: '',
-        },
-
-        replies: [],
-    },
-
-    {
-        id: 3,
-        user_id: 7,
-        product_id: 1,
-        parent_id: null,
-        content:
-            'Đóng gói tốt, cần thêm nhiều hướng dẫn sử dụng thực tế hơn.',
-        rating: 4,
-        created_at:
-            '2026-08-22T15:20:00Z',
-
-        user: {
-            id: 7,
-            name: 'Thanh Hằng',
-            avatar: '',
-        },
-
-        replies: [],
-    },
-]
-
-const relatedProducts = [
-    {
-        id: 2,
-        product_name:
-            'Phân bón NPK chuyên dùng cho lúa',
-        average_rating: 4.8,
-        min_price: 565000,
-        image:
-            'https://images.unsplash.com/photo-1574323347407-f5e1ad6d020b?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        id: 3,
-        product_name:
-            'Thuốc phòng trừ sâu cuốn lá',
-        average_rating: 4.6,
-        min_price: 268000,
-        image:
-            'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        id: 4,
-        product_name:
-            'Hạt giống lúa thơm chất lượng cao',
-        average_rating: 4.9,
-        min_price: 320000,
-        image:
-            'https://images.unsplash.com/photo-1605000797499-95a51c5269ae?auto=format&fit=crop&w=800&q=80',
-    },
-    {
-        id: 6,
-        product_name:
-            'Phân hữu cơ vi sinh cải tạo đất',
-        average_rating: 5,
-        min_price: 185000,
-        image:
-            'https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=800&q=80',
-    },
-]
+let toastTimer = null;
 
 const breadcrumbName = computed(() => {
-    return (
-        product.value?.product_name ||
-        'Chi tiết sản phẩm'
-    )
-})
+    return product.value?.product_name || product.value?.name || "Chi tiết sản phẩm";
+});
 
 function formatPrice(value) {
-    return new Intl.NumberFormat('vi-VN', {
-        style: 'currency',
-        currency: 'VND',
+    return new Intl.NumberFormat("vi-VN", {
+        style: "currency",
+        currency: "VND",
         maximumFractionDigits: 0,
-    }).format(Number(value || 0))
+    }).format(Number(value || 0));
 }
 
 function showToast(message) {
-    toastMessage.value = message
+    toastMessage.value = message;
 
-    window.clearTimeout(toastTimer)
+    window.clearTimeout(toastTimer);
 
     toastTimer = window.setTimeout(() => {
-        toastMessage.value = ''
-    }, 2200)
+        toastMessage.value = "";
+    }, 2200);
 }
 
-async function loadProduct() {
-    loading.value = true
+function normalizeProduct(data) {
+    return {
+        ...data,
+        product_name: data.product_name || data.name || "Sản phẩm",
+        name: data.name || data.product_name || "Sản phẩm",
+        images: Array.isArray(data.images) ? data.images : [],
+        variants: Array.isArray(data.variants) ? data.variants : [],
+        reviews: Array.isArray(data.reviews) ? data.reviews : [],
+        is_show: Boolean(data.is_show),
+        average_rating: Number(data.average_rating || 0),
+        review_count: Number(data.review_count || data.reviews?.length || 0),
+    };
+}
+
+function getProductImage(item) {
+    return (
+        item.primary_image ||
+        item.image ||
+        item.images?.[0]?.image_url ||
+        "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=800&q=80"
+    );
+}
+
+function getMinPrice(item) {
+    if (item.min_price !== undefined && item.min_price !== null) {
+        return Number(item.min_price);
+    }
+
+    const prices = [];
+
+    (item.variants || []).forEach((variant) => {
+        (variant.packages || []).forEach((packageItem) => {
+            prices.push(Number(packageItem.price || 0));
+        });
+    });
+
+    return prices.length ? Math.min(...prices.filter((price) => price > 0)) : 0;
+}
+
+function normalizeRelatedProduct(item) {
+    return {
+        id: item.id,
+        product_name: item.product_name || item.name || "Sản phẩm",
+        average_rating: Number(item.average_rating || 0),
+        min_price: getMinPrice(item),
+        image: getProductImage(item),
+    };
+}
+
+async function loadRelatedProducts() {
+    if (!product.value?.category?.id) {
+        relatedProducts.value = [];
+        return;
+    }
+
+    loadingRelated.value = true;
 
     try {
-        /*
-        Khi nối backend:
-    
-        const response = await apiClient.get(
-          `/api/products/${route.params.id}`
-        )
-    
-        product.value =
-          response.data.data || response.data
-    
-        reviews.value =
-          product.value.reviews || []
-        */
+        const response = await ClientProductService.getProducts({
+            category_id: product.value.category.id,
+            per_page: 5,
+        });
 
-        product.value = {
-            ...demoProduct,
-            id: Number(
-                route.params.id ||
-                demoProduct.id,
-            ),
-        }
+        const data = response.data?.data || [];
 
-        reviews.value = demoReviews.map(
-            (review) => ({
-                ...review,
-            }),
-        )
+        relatedProducts.value = data
+            .filter((item) => Number(item.id) !== Number(product.value.id))
+            .slice(0, 4)
+            .map(normalizeRelatedProduct);
+    } catch (error) {
+        console.error("Lỗi tải sản phẩm liên quan:", error);
+        relatedProducts.value = [];
     } finally {
-        loading.value = false
+        loadingRelated.value = false;
     }
 }
 
-function handleAddCart(payload) {
-    /*
-    API giỏ hàng:
-  
-    await apiClient.post('/api/cart/items', {
-      package_id: payload.package_id,
-      quantity: payload.quantity,
-    })
-    */
+async function loadProduct() {
+    loading.value = true;
+    errorMessage.value = "";
 
-    console.log('add-cart', payload)
+    try {
+        const response = await ClientProductService.getProduct(route.params.id);
+        const data = response.data?.data || response.data;
 
-    showToast(
-        `Đã thêm ${payload.quantity} sản phẩm vào giỏ hàng`,
-    )
+        product.value = normalizeProduct(data);
+        reviews.value = product.value.reviews || [];
+
+        await loadRelatedProducts();
+    } catch (error) {
+        console.error("Lỗi tải chi tiết sản phẩm:", error);
+
+        errorMessage.value =
+            error.response?.data?.message ||
+            "Không tải được chi tiết sản phẩm. Vui lòng thử lại sau.";
+
+        product.value = null;
+        reviews.value = [];
+        relatedProducts.value = [];
+    } finally {
+        loading.value = false;
+    }
 }
 
-function handleBuyNow(payload) {
-    /*
-    Sau này:
-  
-    await cartStore.buyNow(payload)
-    router.push('/checkout')
-    */
+async function handleAddCart(payload) {
+    try {
+        await cartStore.addToCart({
+            package_id: payload.package_id,
+            quantity: payload.quantity,
+        });
 
-    console.log('buy-now', payload)
+        showToast(`Đã thêm ${payload.quantity} sản phẩm vào giỏ hàng`);
+    } catch (error) {
+        console.error("Lỗi thêm giỏ hàng:", error);
 
-    showToast(
-        'Đã chọn mua ngay, bước tiếp theo là thanh toán',
-    )
+        showToast(
+            cartStore.errorMsg ||
+            error.response?.data?.message ||
+            "Không thêm được sản phẩm vào giỏ hàng.",
+        );
+    }
 }
 
-function handleWishlist(productId) {
-    /*
-    API yêu thích:
-  
-    await apiClient.post('/api/wishlists', {
-      product_id: productId,
-    })
-    */
+async function handleBuyNow(payload) {
+    try {
+        await cartStore.addToCart({
+            package_id: payload.package_id,
+            quantity: payload.quantity,
+        });
 
-    wishlisted.value = !wishlisted.value
+        showToast("Đã thêm vào giỏ hàng, chuyển đến thanh toán...");
+
+        setTimeout(() => {
+            router.push("/checkout");
+        }, 500);
+    } catch (error) {
+        console.error("Lỗi mua ngay:", error);
+
+        showToast(
+            cartStore.errorMsg ||
+            error.response?.data?.message ||
+            "Không thể mua ngay sản phẩm này.",
+        );
+    }
+}
+
+function handleWishlist() {
+    wishlisted.value = !wishlisted.value;
 
     showToast(
         wishlisted.value
-            ? 'Đã thêm vào yêu thích'
-            : 'Đã bỏ khỏi yêu thích',
-    )
+            ? "Đã thêm vào yêu thích"
+            : "Đã bỏ khỏi yêu thích",
+    );
 }
 
-function handleSubmitReview(payload) {
-    /*
-    API đánh giá:
-  
-    await apiClient.post(
-      `/api/products/${product.value.id}/reviews`,
-      payload,
-    )
-    */
-
-    reviews.value.unshift({
-        id: Date.now(),
-        ...payload,
-        created_at:
-            new Date().toISOString(),
-
-        user: {
-            id: 3,
-            name: 'Bạn',
-            avatar: '',
-        },
-
-        replies: [],
-    })
-
-    product.value.review_count =
-        reviews.value.length
-
-    product.value.average_rating =
-        reviews.value.reduce(
-            (total, review) =>
-                total +
-                Number(review.rating || 0),
-            0,
-        ) / reviews.value.length
-
-    showToast(
-        'Đã gửi đánh giá sản phẩm',
-    )
+function handleSubmitReview() {
+    showToast("Chức năng đánh giá sản phẩm sẽ được gắn ở bước Product Reviews.");
 }
 
 watch(
     () => route.params.id,
     () => {
-        loadProduct()
+        loadProduct();
     },
     {
         immediate: true,
     },
-)
+);
 
 onBeforeUnmount(() => {
-    window.clearTimeout(toastTimer)
-})
+    window.clearTimeout(toastTimer);
+});
 </script>
 
 <template>
     <div class="min-h-screen bg-white text-slate-800">
-        <!-- Breadcrumb -->
         <div class="border-b border-slate-100 bg-[#fbfcfb]">
             <nav class="mx-auto flex max-w-[1440px] items-center gap-2 px-4 py-4 text-xs text-slate-400 sm:px-6 lg:px-10"
                 aria-label="Breadcrumb">
@@ -477,23 +251,23 @@ onBeforeUnmount(() => {
         </div>
 
         <main class="mx-auto max-w-[1440px] px-4 py-8 sm:px-6 lg:px-10 lg:py-12">
-            <!-- Skeleton -->
+            <div v-if="errorMessage"
+                class="mb-6 rounded-2xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">
+                {{ errorMessage }}
+            </div>
+
             <div v-if="loading" class="grid animate-pulse gap-10 lg:grid-cols-2">
                 <div class="aspect-square rounded-3xl bg-slate-100"></div>
 
                 <div class="space-y-5 py-4">
                     <div class="h-5 w-32 rounded bg-slate-100"></div>
-
                     <div class="h-12 w-4/5 rounded bg-slate-100"></div>
-
                     <div class="h-24 rounded-2xl bg-slate-100"></div>
-
                     <div class="h-40 rounded-2xl bg-slate-100"></div>
                 </div>
             </div>
 
             <template v-else-if="product">
-                <!-- Thông tin chính -->
                 <div class="grid items-start gap-9 lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)] lg:gap-14">
                     <ProductGallery :images="product.images" :product-name="product.product_name" />
 
@@ -501,7 +275,6 @@ onBeforeUnmount(() => {
                         @buy-now="handleBuyNow" @toggle-wishlist="handleWishlist" />
                 </div>
 
-                <!-- Cam kết -->
                 <div class="mt-12 grid gap-4 rounded-2xl border border-[#dce8df] bg-[#f6faf7] p-5 sm:grid-cols-3">
                     <div class="flex items-center gap-3">
                         <Icon icon="mdi:truck-fast-outline" class="text-3xl text-[#07532b]" />
@@ -546,12 +319,10 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
 
-                <!-- Tabs -->
                 <div class="mt-12">
                     <ProductContentTabs :product="product" :reviews="reviews" @submit-review="handleSubmitReview" />
                 </div>
 
-                <!-- Liên quan -->
                 <section class="mt-14">
                     <div class="mb-7 flex items-end justify-between gap-4">
                         <div>
@@ -570,7 +341,12 @@ onBeforeUnmount(() => {
                         </RouterLink>
                     </div>
 
-                    <div class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    <div v-if="loadingRelated" class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                        <div v-for="item in 4" :key="item" class="h-[300px] animate-pulse rounded-2xl bg-slate-100">
+                        </div>
+                    </div>
+
+                    <div v-else-if="relatedProducts.length" class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
                         <RouterLink v-for="item in relatedProducts" :key="item.id" :to="{
                             name: 'client-product-detail',
                             params: { id: item.id },
@@ -590,28 +366,30 @@ onBeforeUnmount(() => {
                                 <Icon icon="mdi:star" class="text-[#ffc400]" />
 
                                 <span class="text-xs text-slate-500">
-                                    {{ item.average_rating }}
+                                    {{ Number(item.average_rating || 0).toFixed(1) }}
                                 </span>
                             </div>
 
                             <strong class="mt-2 block text-sm text-[#0a8b43]">
-                                Từ
-                                {{ formatPrice(item.min_price) }}
+                                Từ {{ formatPrice(item.min_price) }}
                             </strong>
                         </RouterLink>
+                    </div>
+
+                    <div v-else
+                        class="rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
+                        Chưa có sản phẩm liên quan.
                     </div>
                 </section>
             </template>
         </main>
 
-        <!-- Toast -->
         <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-3 opacity-0"
             enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-150"
             leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-3 opacity-0">
             <div v-if="toastMessage"
                 class="fixed bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#063f22] px-5 py-3 text-xs font-semibold text-white shadow-2xl">
                 <Icon icon="mdi:check-circle" class="text-lg text-[#ffd326]" />
-
                 {{ toastMessage }}
             </div>
         </Transition>

@@ -26,10 +26,7 @@ const rootRef = ref(null);
 const open = ref(false);
 
 const active = computed(() => {
-    return (
-        route.path.startsWith("/products") ||
-        Boolean(route.query.category)
-    );
+    return route.path.startsWith("/products") || Boolean(route.query.category);
 });
 
 const productsLink = computed(() => {
@@ -51,16 +48,13 @@ function categoryLink(category) {
             : "home",
 
         query: {
-            category:
-                category.slug || category.id,
+            category: category.slug || category.id,
         },
     };
 }
 
 function handleOutsideClick(event) {
-    if (
-        !rootRef.value?.contains(event.target)
-    ) {
+    if (!rootRef.value?.contains(event.target)) {
         open.value = false;
     }
 }
@@ -73,17 +67,11 @@ watch(
 );
 
 onMounted(() => {
-    document.addEventListener(
-        "pointerdown",
-        handleOutsideClick,
-    );
+    document.addEventListener("pointerdown", handleOutsideClick);
 });
 
 onBeforeUnmount(() => {
-    document.removeEventListener(
-        "pointerdown",
-        handleOutsideClick,
-    );
+    document.removeEventListener("pointerdown", handleOutsideClick);
 });
 </script>
 
@@ -115,10 +103,7 @@ onBeforeUnmount(() => {
                     class="flex items-center justify-between rounded-lg px-3 py-2.5 text-xs text-slate-700 transition hover:bg-[#edf5f0] hover:text-[#07532b]"
                     role="menuitem">
                     <span class="truncate">
-                        {{
-                            category.name ||
-                            category.category_name
-                        }}
+                        {{ category.name || category.category_name }}
                     </span>
 
                     <Icon icon="mdi:chevron-right" class="shrink-0 text-base text-slate-400" />

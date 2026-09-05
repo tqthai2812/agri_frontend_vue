@@ -1,6 +1,6 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { Icon } from '@iconify/vue'
+import { computed, ref, watch } from "vue";
+import { Icon } from "@iconify/vue";
 
 const props = defineProps({
     images: {
@@ -10,72 +10,64 @@ const props = defineProps({
 
     productName: {
         type: String,
-        default: 'Sản phẩm',
+        default: "Sản phẩm",
     },
-})
+});
 
-const selectedImageId = ref(null)
-const previewOpen = ref(false)
+const selectedImageId = ref(null);
+const previewOpen = ref(false);
+
+const fallbackImage =
+    "https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=1200&q=90";
 
 const sortedImages = computed(() => {
-    return [...props.images].sort((a, b) => {
-        if (a.is_primary !== b.is_primary) {
-            return a.is_primary ? -1 : 1
-        }
+    return [...props.images]
+        .filter((image) => image?.image_url)
+        .sort((a, b) => {
+            if (a.is_primary !== b.is_primary) {
+                return a.is_primary ? -1 : 1;
+            }
 
-        return (
-            Number(a.sort_order || 0) -
-            Number(b.sort_order || 0)
-        )
-    })
-})
+            return Number(a.sort_order || 0) - Number(b.sort_order || 0);
+        });
+});
 
 const selectedImage = computed(() => {
     return (
-        sortedImages.value.find(
-            (image) =>
-                image.id === selectedImageId.value,
-        ) ||
+        sortedImages.value.find((image) => image.id === selectedImageId.value) ||
         sortedImages.value[0] ||
-        null
-    )
-})
+        {
+            id: "fallback",
+            image_url: fallbackImage,
+            is_primary: true,
+            sort_order: 1,
+        }
+    );
+});
 
 watch(
     sortedImages,
     (images) => {
-        const imageExists = images.some(
-            (image) =>
-                image.id === selectedImageId.value,
-        )
+        const imageExists = images.some((image) => image.id === selectedImageId.value);
 
         if (!imageExists) {
-            selectedImageId.value =
-                images[0]?.id ?? null
+            selectedImageId.value = images[0]?.id ?? null;
         }
     },
     {
         immediate: true,
     },
-)
+);
 </script>
 
 <template>
     <div>
         <div
             class="group relative grid aspect-square place-items-center overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-[0_10px_35px_rgba(6,75,38,0.06)]">
-            <img v-if="selectedImage" :src="selectedImage.image_url" :alt="productName"
+            <img :src="selectedImage.image_url" :alt="productName"
                 class="size-full object-contain transition duration-500 group-hover:scale-[1.03]" />
 
-            <div v-else class="text-center text-slate-300">
-                <Icon icon="mdi:image-off-outline" class="mx-auto text-6xl" />
-
-                <p class="mt-3 text-sm">
-                    Sản phẩm chưa có hình ảnh
-                </p>
-            </div>
-
-            <button v-if="selectedImage" type="button"
+            <button type="button"
                 class="absolute right-4 top-4 grid size-10 place-items-center rounded-full border border-slate-200 bg-white/90 text-[#07532b] shadow-sm transition hover:bg-[#07532b] hover:text-white"
                 aria-label="Xem ảnh lớn" @click="previewOpen = true">
                 <Icon icon="mdi:magnify-plus-outline" class="text-xl" />
@@ -86,14 +78,12 @@ watch(
             <button v-for="image in sortedImages" :key="image.id" type="button"
                 class="aspect-square overflow-hidden rounded-xl border-2 bg-white p-1 transition" :class="selectedImage?.id === image.id
                     ? 'border-[#07532b] shadow-sm'
-                    : 'border-slate-200 hover:border-[#9fc1aa]'
-                    " @click="selectedImageId = image.id">
+                    : 'border-slate-200 hover:border-[#9fc1aa]'" @click="selectedImageId = image.id">
                 <img :src="image.image_url" :alt="`${productName} - ảnh ${image.sort_order || 1}`" loading="lazy"
                     class="size-full rounded-lg object-cover" />
             </button>
         </div>
 
-        <!-- Xem ảnh lớn -->
         <Teleport to="body">
             <Transition enter-active-class="transition duration-200" enter-from-class="opacity-0"
                 enter-to-class="opacity-100" leave-active-class="transition duration-150" leave-from-class="opacity-100"

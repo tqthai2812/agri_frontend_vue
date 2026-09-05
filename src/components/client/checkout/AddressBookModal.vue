@@ -1,97 +1,126 @@
 <script setup>
-import { reactive, ref, watch } from 'vue'
-import { Icon } from '@iconify/vue'
+import { reactive, ref, watch } from "vue";
+import { Icon } from "@iconify/vue";
 
 const props = defineProps({
     modelValue: {
         type: Boolean,
         default: false,
     },
+
     addresses: {
         type: Array,
         default: () => [],
     },
+
     selectedAddressId: {
         type: [Number, String],
         default: null,
     },
-})
+
+    saving: {
+        type: Boolean,
+        default: false,
+    },
+});
 
 const emit = defineEmits([
-    'update:modelValue',
-    'confirm',
-    'save-address',
-])
+    "update:modelValue",
+    "confirm",
+    "save-address",
+]);
 
-const tempSelectedId = ref(null)
-const showForm = ref(false)
-const editingId = ref(null)
+const tempSelectedId = ref(null);
+const showForm = ref(false);
+const editingId = ref(null);
+const localError = ref("");
 
 const emptyForm = () => ({
-    receiver_name: '',
-    receiver_phone: '',
-    province: '',
-    district: '',
-    ward: '',
-    address_detail: '',
-    address_type: 'home',
+    receiver_name: "",
+    receiver_phone: "",
+    province: "",
+    district: "",
+    ward: "",
+    province_id: "",
+    district_id: "",
+    ward_id: "",
+    address_detail: "",
+    address_type: "home",
     is_default: false,
-})
+});
 
-const form = reactive(emptyForm())
+const form = reactive(emptyForm());
 
 watch(
     () => props.modelValue,
     (isOpen) => {
-        if (!isOpen) return
+        if (!isOpen) {
+            return;
+        }
 
-        tempSelectedId.value = props.selectedAddressId
-        showForm.value = false
-        editingId.value = null
+        tempSelectedId.value = props.selectedAddressId;
+        showForm.value = props.addresses.length === 0;
+        editingId.value = null;
+        localError.value = "";
+
+        if (props.addresses.length === 0) {
+            resetForm();
+            form.is_default = true;
+        }
     },
-)
+);
 
 watch(
     () => props.selectedAddressId,
     (id) => {
         if (props.modelValue) {
-            tempSelectedId.value = id
+            tempSelectedId.value = id;
         }
     },
-)
+);
 
 function close() {
-    emit('update:modelValue', false)
+    emit("update:modelValue", false);
 }
 
 function resetForm() {
-    Object.assign(form, emptyForm())
+    Object.assign(form, emptyForm());
+    localError.value = "";
 }
 
 function openCreateForm() {
-    editingId.value = null
-    resetForm()
-    showForm.value = true
+    editingId.value = null;
+    resetForm();
+
+    if (props.addresses.length === 0) {
+        form.is_default = true;
+    }
+
+    showForm.value = true;
 }
 
 function openEditForm(address) {
-    editingId.value = address.id
+    editingId.value = address.id;
 
     Object.assign(form, {
-        receiver_name: address.receiver_name || '',
-        receiver_phone: address.receiver_phone || '',
-        province: address.province || '',
-        district: address.district || '',
-        ward: address.ward || '',
-        address_detail: address.address_detail || '',
-        address_type: address.address_type || 'home',
+        receiver_name: address.receiver_name || "",
+        receiver_phone: address.receiver_phone || "",
+        province: address.province || "",
+        district: address.district || "",
+        ward: address.ward || "",
+        province_id: address.province_id || "",
+        district_id: address.district_id || "",
+        ward_id: address.ward_id || "",
+        address_detail: address.address_detail || "",
+        address_type: address.address_type || "home",
         is_default: Boolean(address.is_default),
-    })
+    });
 
-    showForm.value = true
+    localError.value = "";
+    showForm.value = true;
 }
 
-function saveAddress() {
+async function saveAddress() {
     const requiredValues = [
         form.receiver_name,
         form.receiver_phone,
@@ -99,30 +128,48 @@ function saveAddress() {
         form.district,
         form.ward,
         form.address_detail,
-    ]
+    ];
 
-    if (
-        requiredValues.some(
-            (value) => !String(value).trim(),
-        )
-    ) {
-        window.alert('Vui lòng nhập đầy đủ thông tin địa chỉ.')
-        return
+    if (requiredValues.some((value) => !String(value).trim())) {
+        localError.value = "Vui lòng nhập đầy đủ thông tin địa chỉ.";
+        return;
     }
 
-    emit('save-address', {
-        id: editingId.value,
-        ...form,
-    })
+    try {
+        await emit("save-address", {
+            id: editingId.value,
+            receiver_name: form.receiver_name,
+            receiver_phone: form.receiver_phone,
+            province: form.province,
+            district: form.district,
+            ward: form.ward,
+            province_id: form.province_id || null,
+            district_id: form.district_id || null,
+            ward_id: form.ward_id || null,
+            address_detail: form.address_detail,
+            address_type: form.address_type,
+            is_default: Boolean(form.is_default),
+        });
 
-    showForm.value = false
+        showForm.value = false;
+        editingId.value = null;
+        localError.value = "";
+    } catch (error) {
+        localError.value = "Không lưu được địa chỉ. Vui lòng kiểm tra lại.";
+    }
 }
 
 function confirmSelection() {
-    if (!tempSelectedId.value) return
+    if (!tempSelectedId.value) {
+        return;
+    }
 
-    emit('confirm', tempSelectedId.value)
-    close()
+    emit("confirm", tempSelectedId.value);
+    close();
+}
+
+function isSelected(addressId) {
+    return Number(tempSelectedId.value) === Number(addressId);
 }
 </script>
 
@@ -141,17 +188,17 @@ function confirmSelection() {
                                 {{
                                     showForm
                                         ? editingId
-                                            ? 'Cập nhật địa chỉ'
-                                            : 'Thêm địa chỉ mới'
-                                        : 'Địa chỉ của tôi'
+                                            ? "Cập nhật địa chỉ"
+                                            : "Thêm địa chỉ mới"
+                                        : "Địa chỉ của tôi"
                                 }}
                             </h2>
 
                             <p class="mt-0.5 text-xs text-slate-400">
                                 {{
                                     showForm
-                                        ? 'Thông tin này sẽ được dùng để giao hàng.'
-                                        : 'Chọn địa chỉ nhận đơn hàng.'
+                                        ? "Thông tin này sẽ được dùng để giao hàng."
+                                        : "Chọn địa chỉ nhận đơn hàng."
                                 }}
                             </p>
                         </div>
@@ -165,12 +212,11 @@ function confirmSelection() {
 
                     <div class="flex-1 overflow-y-auto px-5 py-5 sm:px-6">
                         <template v-if="!showForm">
-                            <div class="space-y-3">
+                            <div v-if="addresses.length" class="space-y-3">
                                 <label v-for="address in addresses" :key="address.id"
-                                    class="flex cursor-pointer gap-3 rounded-2xl border p-4 transition" :class="tempSelectedId === address.id
+                                    class="flex cursor-pointer gap-3 rounded-2xl border p-4 transition" :class="isSelected(address.id)
                                         ? 'border-[#0a7139] bg-[#f2f8f4] ring-2 ring-[#0a7139]/10'
-                                        : 'border-slate-200 hover:border-[#9dbba8]'
-                                        ">
+                                        : 'border-slate-200 hover:border-[#9dbba8]'">
                                     <input v-model="tempSelectedId" type="radio" :value="address.id"
                                         class="mt-1 size-4 shrink-0 accent-[#07532b]" />
 
@@ -202,9 +248,9 @@ function confirmSelection() {
                                         <span
                                             class="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-500">
                                             {{
-                                                address.address_type === 'office'
-                                                    ? 'Văn phòng'
-                                                    : 'Nhà riêng'
+                                                address.address_type === "office"
+                                                    ? "Văn phòng"
+                                                    : "Nhà riêng"
                                             }}
                                         </span>
                                     </div>
@@ -217,6 +263,19 @@ function confirmSelection() {
                                 </label>
                             </div>
 
+                            <div v-else
+                                class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+                                <Icon icon="mdi:map-marker-plus-outline" class="mx-auto text-4xl text-[#07532b]" />
+
+                                <p class="mt-3 text-sm font-semibold text-[#123d27]">
+                                    Chưa có địa chỉ nhận hàng
+                                </p>
+
+                                <p class="mt-1 text-xs text-slate-500">
+                                    Thêm địa chỉ để tiếp tục đặt hàng.
+                                </p>
+                            </div>
+
                             <button type="button"
                                 class="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl border border-dashed border-[#8fb49c] py-3 text-sm font-semibold text-[#07532b] transition hover:bg-[#f2f8f4]"
                                 @click="openCreateForm">
@@ -226,6 +285,11 @@ function confirmSelection() {
                         </template>
 
                         <form v-else class="space-y-4" @submit.prevent="saveAddress">
+                            <div v-if="localError"
+                                class="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                                {{ localError }}
+                            </div>
+
                             <div class="grid gap-4 sm:grid-cols-2">
                                 <label class="block">
                                     <span class="mb-1.5 block text-xs font-semibold text-slate-600">
@@ -303,8 +367,7 @@ function confirmSelection() {
                                         class="flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-xs font-semibold transition"
                                         :class="form.address_type === type.value
                                             ? 'border-[#0a7139] bg-[#edf5f0] text-[#07532b]'
-                                            : 'border-slate-200 text-slate-500'
-                                            ">
+                                            : 'border-slate-200 text-slate-500'">
                                         <input v-model="form.address_type" type="radio" :value="type.value"
                                             class="hidden" />
 
@@ -323,13 +386,18 @@ function confirmSelection() {
                             <div class="flex justify-end gap-3 pt-2">
                                 <button type="button"
                                     class="rounded-full border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-50"
-                                    @click="showForm = false">
+                                    :disabled="saving" @click="showForm = false">
                                     Trở lại
                                 </button>
 
                                 <button type="submit"
-                                    class="rounded-full bg-[#07532b] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0a6837]">
-                                    Lưu địa chỉ
+                                    class="rounded-full bg-[#07532b] px-6 py-2.5 text-sm font-bold text-white transition hover:bg-[#0a6837] disabled:cursor-not-allowed disabled:opacity-50"
+                                    :disabled="saving">
+                                    {{
+                                        saving
+                                            ? "Đang lưu..."
+                                            : "Lưu địa chỉ"
+                                    }}
                                 </button>
                             </div>
                         </form>

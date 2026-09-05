@@ -1,73 +1,82 @@
 <script setup>
-import { computed } from 'vue'
-import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/authStore'
-import CategoryDropdown from './CategoryDropdown.vue'
+import { computed } from "vue";
+import { Icon } from "@iconify/vue";
+import { useAuthStore } from "@/stores/authStore";
+import CategoryDropdown from "./CategoryDropdown.vue";
 
 defineProps({
-    cartCount: { type: Number, default: 0 },
-    wishlistCount: { type: Number, default: 0 },
-    searchOpen: { type: Boolean, default: false },
-    mobileMenuOpen: { type: Boolean, default: false },
-})
+    categories: {
+        type: Array,
+        default: () => [],
+    },
+    cartCount: {
+        type: Number,
+        default: 0,
+    },
+    wishlistCount: {
+        type: Number,
+        default: 0,
+    },
+    searchOpen: {
+        type: Boolean,
+        default: false,
+    },
+    mobileMenuOpen: {
+        type: Boolean,
+        default: false,
+    },
+});
 
-defineEmits(['toggle-search', 'toggle-mobile'])
+defineEmits(["toggle-search", "toggle-mobile"]);
 
-const authStore = useAuthStore()
-
-const categories = [
-    { id: 1, name: 'Thuốc bảo vệ thực vật', slug: 'thuoc-bao-ve-thuc-vat' },
-    { id: 2, name: 'Phân bón', slug: 'phan-bon' },
-    { id: 3, name: 'Vật tư nông nghiệp', slug: 'vat-tu-nong-nghiep' },
-    { id: 4, name: 'Hạt giống', slug: 'hat-giong' },
-]
+const authStore = useAuthStore();
 
 const navItems = [
-    { label: 'Tin tức', to: '/news' },
-    { label: 'Liên hệ', to: '/contact' },
-]
+    { label: "Tin tức", to: "/news" },
+    { label: "Liên hệ", to: "/contact" },
+];
 
-const currentUser = computed(() => authStore.user || {})
+const currentUser = computed(() => authStore.user || {});
 
 const userInitials = computed(() => {
-    const name = currentUser.value.name || currentUser.value.email || 'U'
+    const name = currentUser.value.name || currentUser.value.email || "U";
 
     return name
         .trim()
         .split(/\s+/)
         .slice(-2)
         .map((part) => part.charAt(0).toUpperCase())
-        .join('')
-})
+        .join("");
+});
 
 const avatarUrl = computed(() => {
-    const avatar = currentUser.value.avatar
+    const avatar = currentUser.value.avatar;
 
-    if (!avatar) return ''
-
-    if (/^(https?:|data:|blob:)/i.test(avatar)) {
-        return avatar
+    if (!avatar) {
+        return "";
     }
 
-    const apiUrl =
-        import.meta.env.VITE_API_URL || 'http://127.0.0.1:8000'
+    if (/^(https?:|data:|blob:)/i.test(avatar)) {
+        return avatar;
+    }
+
+    const apiUrl = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000";
 
     const backendUrl = apiUrl
-        .replace(/\/api\/?$/, '')
-        .replace(/\/$/, '')
+        .replace(/\/api\/?$/, "")
+        .replace(/\/$/, "");
 
-    const avatarPath = avatar.replace(/^\//, '')
+    const avatarPath = String(avatar).replace(/^\/+/, "");
 
-    return avatarPath.startsWith('storage/')
+    return avatarPath.startsWith("storage/")
         ? `${backendUrl}/${avatarPath}`
-        : `${backendUrl}/storage/${avatarPath}`
-})
+        : `${backendUrl}/storage/${avatarPath}`;
+});
 </script>
 
 <template>
     <header class="border-b border-slate-100 bg-white shadow-sm">
         <div class="mx-auto flex h-[78px] max-w-[1440px] items-center justify-between px-4 sm:px-6">
-            <!-- Logo -->
             <RouterLink to="/" class="flex shrink-0 items-center gap-2" aria-label="NFarmHouse - Trang chủ">
                 <span class="text-4xl font-light leading-none text-[#e6b51b]">
                     N
@@ -84,7 +93,6 @@ const avatarUrl = computed(() => {
                 </span>
             </RouterLink>
 
-            <!-- Menu desktop -->
             <nav class="hidden items-center gap-9 text-[13px] font-semibold text-[#174e31] lg:flex">
                 <RouterLink to="/" class="transition hover:text-[#d6a900]" exact-active-class="text-[#d6a900]">
                     Trang chủ
@@ -107,21 +115,18 @@ const avatarUrl = computed(() => {
                 </RouterLink>
             </nav>
 
-            <!-- Actions desktop -->
             <div class="hidden items-center gap-2 lg:flex">
-                <!-- Search luôn hiển thị -->
                 <button type="button" class="header-action" :class="searchOpen ? 'border-[#07532b] bg-[#edf5f0]' : ''"
                     :aria-expanded="searchOpen" aria-label="Mở thanh tìm kiếm" @click="$emit('toggle-search')">
                     <Icon :icon="searchOpen ? 'mdi:close' : 'mdi:magnify'" class="text-xl" />
                 </button>
 
-                <!-- Đã đăng nhập -->
                 <template v-if="authStore.isAuthenticated">
                     <RouterLink to="/cart" class="header-action relative" aria-label="Giỏ hàng">
                         <Icon icon="mdi:cart-outline" class="text-xl" />
 
                         <span v-if="cartCount" class="header-badge">
-                            {{ cartCount > 99 ? '99+' : cartCount }}
+                            {{ cartCount > 99 ? "99+" : cartCount }}
                         </span>
                     </RouterLink>
 
@@ -129,7 +134,7 @@ const avatarUrl = computed(() => {
                         <Icon icon="mdi:heart-outline" class="text-xl" />
 
                         <span v-if="wishlistCount" class="header-badge">
-                            {{ wishlistCount > 99 ? '99+' : wishlistCount }}
+                            {{ wishlistCount > 99 ? "99+" : wishlistCount }}
                         </span>
                     </RouterLink>
 
@@ -144,7 +149,6 @@ const avatarUrl = computed(() => {
                     </RouterLink>
                 </template>
 
-                <!-- Chưa đăng nhập -->
                 <template v-else>
                     <RouterLink :to="{ name: 'login' }"
                         class="group flex h-10 items-center rounded-full bg-[#07532b] py-1 pl-5 pr-1 text-xs font-bold text-white transition hover:bg-[#064522]">
@@ -165,7 +169,6 @@ const avatarUrl = computed(() => {
                 </template>
             </div>
 
-            <!-- Nút menu mobile -->
             <button type="button" class="grid size-10 place-items-center rounded-full bg-[#07532b] text-white lg:hidden"
                 :aria-expanded="mobileMenuOpen" aria-label="Mở menu" @click="$emit('toggle-mobile')">
                 <Icon :icon="mobileMenuOpen ? 'mdi:close' : 'mdi:menu'" class="text-2xl" />

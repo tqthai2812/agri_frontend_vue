@@ -11,11 +11,17 @@ class CheckoutService {
 
   async preview(data) {
     await this.csrf();
-    return apiClient.post("/api/v1/checkout/preview", data);
+
+    return apiClient.post("/api/v1/checkout/preview", {
+      cart_item_ids: data.cart_item_ids || [],
+      delivery_id: data.delivery_id,
+      discount_code: data.discount_code || null,
+    });
   }
 
   async checkout(data) {
     await this.csrf();
+
     return apiClient.post("/api/v1/checkout", data);
   }
 }

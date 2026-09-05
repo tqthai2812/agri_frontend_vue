@@ -1,66 +1,71 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
-import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/authStore'
+import { ref, watch } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import { Icon } from "@iconify/vue";
+import { useAuthStore } from "@/stores/authStore";
 
 defineProps({
     open: {
         type: Boolean,
         default: false,
     },
-})
+    categories: {
+        type: Array,
+        default: () => [],
+    },
+    cartCount: {
+        type: Number,
+        default: 0,
+    },
+    wishlistCount: {
+        type: Number,
+        default: 0,
+    },
+});
 
-const emit = defineEmits(['close', 'search'])
+const emit = defineEmits(["close", "search"]);
 
-const route = useRoute()
-const router = useRouter()
-const authStore = useAuthStore()
+const route = useRoute();
+const router = useRouter();
+const authStore = useAuthStore();
 
-const categoryOpen = ref(false)
-
-const categories = [
-    { id: 1, name: 'Thuốc bảo vệ thực vật', slug: 'thuoc-bao-ve-thuc-vat' },
-    { id: 2, name: 'Phân bón', slug: 'phan-bon' },
-    { id: 3, name: 'Vật tư nông nghiệp', slug: 'vat-tu-nong-nghiep' },
-    { id: 4, name: 'Hạt giống', slug: 'hat-giong' },
-]
+const categoryOpen = ref(false);
 
 const navItems = [
-    { label: 'Tin tức', to: '/news' },
-    { label: 'Liên hệ', to: '/contact' },
-]
+    { label: "Tin tức", to: "/news" },
+    { label: "Liên hệ", to: "/contact" },
+];
 
-const productsLink = computed(() => {
-    return router.hasRoute('client-products')
-        ? { name: 'client-products' }
-        : { name: 'home' }
-})
+function productsLink() {
+    return router.hasRoute("client-products")
+        ? { name: "client-products" }
+        : { name: "home" };
+}
 
 function categoryLink(category) {
     return {
-        name: router.hasRoute('client-products')
-            ? 'client-products'
-            : 'home',
+        name: router.hasRoute("client-products")
+            ? "client-products"
+            : "home",
 
         query: {
             category: category.slug || category.id,
         },
-    }
+    };
 }
 
 function openSearch() {
-    emit('close')
-    emit('search')
+    emit("close");
+    emit("search");
 }
 
 watch(
     () => route.fullPath,
     () => {
-        categoryOpen.value = false
-        emit('close')
+        categoryOpen.value = false;
+        emit("close");
     },
-)
+);
 </script>
 
 <template>
@@ -70,21 +75,17 @@ watch(
         <nav v-if="open"
             class="absolute inset-x-0 top-full border-t border-slate-100 bg-white px-5 py-5 shadow-xl lg:hidden">
             <div class="mx-auto flex max-w-[1440px] flex-col gap-1 text-sm font-semibold text-[#174e31]">
-                <!-- Search -->
                 <button type="button"
                     class="mb-2 flex w-full items-center gap-3 rounded-full border border-[#bdcec2] bg-[#f8fbf9] px-4 py-3 text-left text-sm font-normal text-slate-400"
                     @click="openSearch">
                     <Icon icon="mdi:magnify" class="text-xl text-[#07532b]" />
-
                     Tìm kiếm sản phẩm...
                 </button>
 
-                <!-- Trang chủ -->
                 <RouterLink to="/" class="mobile-link">
                     Trang chủ
                 </RouterLink>
 
-                <!-- Danh mục -->
                 <button type="button" class="mobile-link flex w-full items-center justify-between text-left"
                     :aria-expanded="categoryOpen" @click="categoryOpen = !categoryOpen">
                     Danh mục
@@ -93,24 +94,21 @@ watch(
                         :class="categoryOpen ? 'rotate-180' : ''" />
                 </button>
 
-                <!-- Danh sách danh mục -->
                 <div v-if="categoryOpen" class="ml-3 space-y-1 border-l-2 border-[#dbe8df] pl-3">
-                    <RouterLink :to="productsLink" class="mobile-category-link">
+                    <RouterLink :to="productsLink()" class="mobile-category-link">
                         Tất cả sản phẩm
                     </RouterLink>
 
                     <RouterLink v-for="category in categories" :key="category.id" :to="categoryLink(category)"
                         class="mobile-category-link">
-                        {{ category.name }}
+                        {{ category.name || category.category_name }}
                     </RouterLink>
                 </div>
 
-                <!-- Tin tức, liên hệ -->
                 <RouterLink v-for="item in navItems" :key="item.label" :to="item.to" class="mobile-link">
                     {{ item.label }}
                 </RouterLink>
 
-                <!-- Chẩn đoán -->
                 <RouterLink to="/diagnosis" class="mobile-link flex items-center gap-2">
                     <span class="rounded-md bg-[#ff4056] px-2 py-1 text-[9px] font-bold uppercase text-white">
                         New
@@ -119,19 +117,26 @@ watch(
                     Chẩn đoán bệnh lúa
                 </RouterLink>
 
-                <!-- Actions -->
                 <div class="mt-3 flex items-center gap-2 border-t border-slate-100 pt-4">
-                    <!-- Đã đăng nhập -->
                     <template v-if="authStore.isAuthenticated">
                         <RouterLink to="/cart"
-                            class="flex flex-1 items-center justify-center gap-2 rounded-full bg-[#07532b] px-4 py-2.5 text-xs text-white">
+                            class="relative flex flex-1 items-center justify-center gap-2 rounded-full bg-[#07532b] px-4 py-2.5 text-xs text-white">
                             <Icon icon="mdi:cart-outline" class="text-lg" />
 
                             Giỏ hàng
+
+                            <span v-if="cartCount"
+                                class="rounded-full bg-[#ffd326] px-1.5 py-0.5 text-[9px] font-bold text-[#07532b]">
+                                {{ cartCount > 99 ? "99+" : cartCount }}
+                            </span>
                         </RouterLink>
 
                         <RouterLink to="/wishlist" class="mobile-icon" aria-label="Yêu thích">
                             <Icon icon="mdi:heart-outline" class="text-lg" />
+
+                            <span v-if="wishlistCount" class="sr-only">
+                                {{ wishlistCount }}
+                            </span>
                         </RouterLink>
 
                         <RouterLink to="/profile" class="mobile-icon" aria-label="Tài khoản">
@@ -139,7 +144,6 @@ watch(
                         </RouterLink>
                     </template>
 
-                    <!-- Chưa đăng nhập -->
                     <template v-else>
                         <RouterLink :to="{ name: 'login' }"
                             class="flex flex-1 items-center justify-center rounded-full bg-[#07532b] px-4 py-2.5 text-xs font-bold text-white">

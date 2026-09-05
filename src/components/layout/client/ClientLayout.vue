@@ -1,6 +1,6 @@
 <script setup>
-import ClientHeader from './ClientHeader.vue'
-import ClientFooter from './ClientFooter.vue'
+import ClientHeader from "./ClientHeader.vue";
+import ClientFooter from "./ClientFooter.vue";
 </script>
 
 <template>

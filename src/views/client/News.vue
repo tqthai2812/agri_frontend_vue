@@ -2,206 +2,256 @@
 import {
     computed,
     onBeforeUnmount,
+    onMounted,
     ref,
     watch,
-} from 'vue'
+} from "vue";
+import { Icon } from "@iconify/vue";
+import NewsArticleCard from "@/components/client/news/NewsArticleCard.vue";
+import NewsSidebar from "@/components/client/news/NewsSidebar.vue";
+import NewsPreviewModal from "@/components/client/news/NewsPreviewModal.vue";
+import ClientHomeService from "@/services/clientHome.service";
 
-import { Icon } from '@iconify/vue'
+const pageSize = 6;
 
-import NewsArticleCard from '@/components/client/news/NewsArticleCard.vue'
-import NewsSidebar from '@/components/client/news/NewsSidebar.vue'
-import NewsPreviewModal from '@/components/client/news/NewsPreviewModal.vue'
-import { newsMockData } from '@/data/newsMockData'
+const search = ref("");
+const activeTag = ref("all");
+const sortBy = ref("latest");
+const currentPage = ref(1);
 
-const pageSize = 6
+const selectedArticle = ref(null);
+const showPreview = ref(false);
+const toast = ref("");
 
-const search = ref('')
-const activeTag = ref('all')
-const sortBy = ref('latest')
-const currentPage = ref(1)
-const selectedArticle = ref(null)
-const showPreview = ref(false)
-const toast = ref('')
+const loading = ref(false);
+const errorMessage = ref("");
 
-let toastTimer = null
+let toastTimer = null;
 
-const articles = ref(
-    newsMockData.filter(
-        (article) =>
-            article.is_published &&
-            !article.is_draft,
-    ),
-)
+const articles = ref([]);
+
+const fallbackImage =
+    "https://images.unsplash.com/photo-1536055401256-3551281467d8?auto=format&fit=crop&w=900&q=80";
 
 const featuredArticles = computed(() => {
     return [...articles.value]
-        .sort(
-            (a, b) =>
-                Number(b.views || 0) -
-                Number(a.views || 0),
-        )
-        .slice(0, 3)
-})
+        .sort((a, b) => Number(b.views || 0) - Number(a.views || 0))
+        .slice(0, 3);
+});
 
 const tags = computed(() => {
-    const tagMap = new Map()
+    const tagMap = new Map();
 
     articles.value.forEach((article) => {
-        ; (article.tags || []).forEach((tag) => {
-            const current = tagMap.get(tag.id)
+        (article.tags || []).forEach((tag) => {
+            const current = tagMap.get(tag.id);
 
             tagMap.set(tag.id, {
                 id: tag.id,
                 tag_name: tag.tag_name,
                 count: Number(current?.count || 0) + 1,
-            })
-        })
-    })
+            });
+        });
+    });
 
-    return [...tagMap.values()].sort(
-        (a, b) => b.count - a.count,
-    )
-})
+    return [...tagMap.values()].sort((a, b) => b.count - a.count);
+});
 
 const filteredArticles = computed(() => {
-    const keyword = search.value
-        .trim()
-        .toLocaleLowerCase('vi')
+    const keyword = search.value.trim().toLocaleLowerCase("vi");
 
-    const result = articles.value.filter(
-        (article) => {
-            const matchesSearch =
-                !keyword ||
-                article.title
-                    .toLocaleLowerCase('vi')
-                    .includes(keyword) ||
-                article.subtitle
-                    .toLocaleLowerCase('vi')
-                    .includes(keyword)
+    const result = articles.value.filter((article) => {
+        const title = article.title || "";
+        const subtitle = article.subtitle || "";
+        const excerpt = article.excerpt || "";
 
-            const matchesTag =
-                activeTag.value === 'all' ||
-                article.tags?.some(
-                    (tag) =>
-                        String(tag.id) ===
-                        String(activeTag.value),
-                )
+        const matchesSearch =
+            !keyword ||
+            title.toLocaleLowerCase("vi").includes(keyword) ||
+            subtitle.toLocaleLowerCase("vi").includes(keyword) ||
+            excerpt.toLocaleLowerCase("vi").includes(keyword);
 
-            return matchesSearch && matchesTag
-        },
-    )
+        const matchesTag =
+            activeTag.value === "all" ||
+            article.tags?.some((tag) => String(tag.id) === String(activeTag.value));
 
-    if (sortBy.value === 'popular') {
-        return [...result].sort(
-            (a, b) =>
-                Number(b.views || 0) -
-                Number(a.views || 0),
-        )
+        return matchesSearch && matchesTag;
+    });
+
+    if (sortBy.value === "popular") {
+        return [...result].sort((a, b) => Number(b.views || 0) - Number(a.views || 0));
     }
 
-    if (sortBy.value === 'comments') {
+    if (sortBy.value === "comments") {
         return [...result].sort(
-            (a, b) =>
-                Number(b.comments_count || 0) -
-                Number(a.comments_count || 0),
-        )
+            (a, b) => Number(b.comments_count || 0) - Number(a.comments_count || 0),
+        );
     }
 
-    return [...result].sort(
-        (a, b) =>
-            new Date(b.created_at) -
-            new Date(a.created_at),
-    )
-})
+    return [...result].sort((a, b) => {
+        const dateA = new Date(a.published_at || a.created_at || 0);
+        const dateB = new Date(b.published_at || b.created_at || 0);
+
+        return dateB - dateA;
+    });
+});
 
 const totalPages = computed(() => {
-    return Math.max(
-        1,
-        Math.ceil(
-            filteredArticles.value.length / pageSize,
-        ),
-    )
-})
+    return Math.max(1, Math.ceil(filteredArticles.value.length / pageSize));
+});
 
 const paginatedArticles = computed(() => {
-    const start =
-        (currentPage.value - 1) * pageSize
+    const start = (currentPage.value - 1) * pageSize;
 
-    return filteredArticles.value.slice(
-        start,
-        start + pageSize,
-    )
-})
+    return filteredArticles.value.slice(start, start + pageSize);
+});
 
 const popularArticles = computed(() => {
     return [...articles.value]
-        .sort(
-            (a, b) =>
-                Number(b.views || 0) -
-                Number(a.views || 0),
-        )
-        .slice(0, 4)
-})
+        .sort((a, b) => Number(b.views || 0) - Number(a.views || 0))
+        .slice(0, 4);
+});
 
-watch(
-    [search, activeTag, sortBy],
-    () => {
-        currentPage.value = 1
-    },
-)
+watch([search, activeTag, sortBy], () => {
+    currentPage.value = 1;
+});
 
-function openArticle(article) {
-    selectedArticle.value = article
-    showPreview.value = true
+function normalizeArticle(article) {
+    const author = article.author || article.user || {
+        id: null,
+        name: "AgriShop",
+    };
+
+    return {
+        id: article.id,
+
+        title: article.title || "Bài viết",
+        subtitle: article.subtitle || article.excerpt || "",
+        content: article.content || "",
+        excerpt: article.excerpt || "",
+
+        slug: article.slug,
+
+        title_image_url: article.title_image_url || fallbackImage,
+
+        views: Number(article.views || 0),
+        comments_count: Number(article.comments_count || 0),
+
+        user: author,
+        author,
+
+        tags: Array.isArray(article.tags) ? article.tags : [],
+
+        published_at: article.published_at,
+        published_date:
+            article.published_date ||
+            (article.published_at
+                ? new Date(article.published_at).toLocaleDateString("vi-VN")
+                : ""),
+
+        created_at: article.created_at,
+
+        raw: article,
+    };
+}
+
+async function fetchNews() {
+    loading.value = true;
+    errorMessage.value = "";
+
+    try {
+        const response = await ClientHomeService.getNews({
+            per_page: 100,
+        });
+
+        const data = response.data?.data || [];
+
+        articles.value = data.map(normalizeArticle);
+    } catch (error) {
+        console.error("Lỗi tải tin tức:", error);
+
+        errorMessage.value =
+            error.response?.data?.message ||
+            "Không tải được danh sách bài viết. Vui lòng thử lại sau.";
+
+        articles.value = [];
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function openArticle(article) {
+    selectedArticle.value = article;
+    showPreview.value = true;
+
+    if (!article.slug) {
+        return;
+    }
+
+    try {
+        const response = await ClientHomeService.getNewsDetail(article.slug);
+        const detail = response.data?.data;
+
+        if (detail) {
+            const normalizedDetail = normalizeArticle(detail);
+
+            selectedArticle.value = normalizedDetail;
+
+            const index = articles.value.findIndex((item) => item.id === detail.id);
+
+            if (index !== -1) {
+                articles.value[index] = normalizedDetail;
+            }
+        }
+    } catch (error) {
+        console.error("Lỗi tải chi tiết bài viết:", error);
+    }
 }
 
 function selectTag(tagId) {
-    activeTag.value =
-        String(activeTag.value) === String(tagId)
-            ? 'all'
-            : tagId
+    activeTag.value = String(activeTag.value) === String(tagId) ? "all" : tagId;
 
     window.scrollTo({
         top: 420,
-        behavior: 'smooth',
-    })
+        behavior: "smooth",
+    });
 }
 
 function changePage(page) {
-    if (
-        page < 1 ||
-        page > totalPages.value
-    ) {
-        return
+    if (page < 1 || page > totalPages.value) {
+        return;
     }
 
-    currentPage.value = page
+    currentPage.value = page;
 
     window.scrollTo({
         top: 620,
-        behavior: 'smooth',
-    })
+        behavior: "smooth",
+    });
 }
 
 function subscribe(email) {
-    console.log('Newsletter email:', email)
+    console.log("Newsletter email:", email);
 
-    toast.value =
-        'Đăng ký nhận bản tin thành công.'
+    toast.value = "Đăng ký nhận bản tin thành công.";
 
-    window.clearTimeout(toastTimer)
+    window.clearTimeout(toastTimer);
 
     toastTimer = window.setTimeout(() => {
-        toast.value = ''
-    }, 2800)
+        toast.value = "";
+    }, 2800);
 
-    // Backend:
+    // Backend sau này:
     // POST /api/newsletter/subscriptions
 }
 
+onMounted(() => {
+    fetchNews();
+});
+
 onBeforeUnmount(() => {
-    window.clearTimeout(toastTimer)
-})
+    window.clearTimeout(toastTimer);
+});
 </script>
 
 <template>
@@ -223,6 +273,17 @@ onBeforeUnmount(() => {
         </div>
 
         <main class="mx-auto max-w-[1320px] px-4 py-7 sm:px-6 lg:px-8 lg:py-10">
+            <div v-if="errorMessage"
+                class="mb-5 rounded-3xl border border-red-100 bg-red-50 px-5 py-4 text-sm text-red-600">
+                {{ errorMessage }}
+            </div>
+
+            <div v-if="loading"
+                class="mb-5 rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-500 shadow-sm">
+                <Icon icon="mdi:loading" class="mx-auto mb-2 animate-spin text-3xl text-[#07532b]" />
+                Đang tải bài viết...
+            </div>
+
             <header class="mb-7 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                     <p class="text-[10px] font-bold uppercase tracking-[0.2em] text-[#d2a900]">
@@ -234,15 +295,12 @@ onBeforeUnmount(() => {
                     </h1>
 
                     <p class="mt-2 max-w-2xl text-xs leading-5 text-slate-500">
-                        Cập nhật kỹ thuật canh tác, sâu bệnh,
-                        phân bón và những câu chuyện mới từ cộng
-                        đồng nông nghiệp.
+                        Cập nhật kỹ thuật canh tác, sâu bệnh, phân bón và những câu chuyện mới từ cộng đồng nông nghiệp.
                     </p>
                 </div>
 
                 <div class="flex items-center gap-2 text-[10px] text-slate-400">
                     <Icon icon="mdi:newspaper-variant-multiple-outline" class="text-xl text-[#07532b]" />
-
                     {{ articles.length }} bài viết đã xuất bản
                 </div>
             </header>
@@ -251,8 +309,7 @@ onBeforeUnmount(() => {
                 <button type="button"
                     class="group relative min-h-[380px] overflow-hidden rounded-3xl text-left shadow-lg lg:min-h-[470px]"
                     @click="openArticle(featuredArticles[0])">
-                    <img :src="featuredArticles[0].title_image_url
-                        " :alt="featuredArticles[0].title"
+                    <img :src="featuredArticles[0].title_image_url" :alt="featuredArticles[0].title"
                         class="absolute inset-0 h-full w-full object-cover transition duration-700 group-hover:scale-105" />
 
                     <span
@@ -276,13 +333,12 @@ onBeforeUnmount(() => {
                         <div class="mt-5 flex flex-wrap items-center gap-4 text-[10px] text-white/60">
                             <span class="flex items-center gap-1.5">
                                 <Icon icon="mdi:account-edit-outline" />
-                                {{ featuredArticles[0].user?.name }}
+                                {{ featuredArticles[0].user?.name || "AgriShop" }}
                             </span>
 
                             <span class="flex items-center gap-1.5">
                                 <Icon icon="mdi:eye-outline" />
-                                {{ featuredArticles[0].views }}
-                                lượt xem
+                                {{ featuredArticles[0].views }} lượt xem
                             </span>
 
                             <span class="flex items-center gap-1.5 font-bold text-[#ffd326]">
@@ -305,7 +361,7 @@ onBeforeUnmount(() => {
 
                         <div class="absolute inset-x-0 bottom-0 p-5 text-white">
                             <span class="text-[9px] font-bold uppercase tracking-wide text-[#ffd326]">
-                                {{ article.tags?.[0]?.tag_name }}
+                                {{ article.tags?.[0]?.tag_name || "Bài viết" }}
                             </span>
 
                             <h3 class="mt-2 line-clamp-2 text-base font-bold leading-6 sm:text-lg">
@@ -354,16 +410,16 @@ onBeforeUnmount(() => {
                             <button type="button"
                                 class="shrink-0 rounded-full border px-3 py-1.5 text-[9px] font-bold transition" :class="activeTag === 'all'
                                     ? 'border-[#07532b] bg-[#07532b] text-white'
-                                    : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'
-                                    " @click="activeTag = 'all'">
+                                    : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'"
+                                @click="activeTag = 'all'">
                                 Tất cả
                             </button>
 
                             <button v-for="tag in tags.slice(0, 7)" :key="tag.id" type="button"
                                 class="shrink-0 rounded-full border px-3 py-1.5 text-[9px] font-bold transition" :class="String(activeTag) === String(tag.id)
                                     ? 'border-[#07532b] bg-[#07532b] text-white'
-                                    : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'
-                                    " @click="selectTag(tag.id)">
+                                    : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'"
+                                @click="selectTag(tag.id)">
                                 {{ tag.tag_name }}
                             </button>
                         </div>
@@ -374,7 +430,7 @@ onBeforeUnmount(() => {
                             @open="openArticle" />
                     </div>
 
-                    <div v-else
+                    <div v-else-if="!loading"
                         class="mt-5 rounded-3xl border border-slate-200 bg-white px-5 py-16 text-center shadow-sm">
                         <span class="mx-auto grid size-20 place-items-center rounded-full bg-[#edf5f0] text-[#07532b]">
                             <Icon icon="mdi:text-search" class="text-4xl" />
@@ -385,8 +441,7 @@ onBeforeUnmount(() => {
                         </h2>
 
                         <p class="mt-1 text-xs text-slate-400">
-                            Thử thay đổi từ khóa hoặc chủ đề đang
-                            chọn.
+                            Thử thay đổi từ khóa hoặc chủ đề đang chọn.
                         </p>
 
                         <button type="button"
@@ -410,15 +465,14 @@ onBeforeUnmount(() => {
                             class="grid size-10 place-items-center rounded-full border text-xs font-bold transition"
                             :class="page === currentPage
                                 ? 'border-[#07532b] bg-[#07532b] text-white'
-                                : 'border-slate-200 bg-white text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'
-                                " @click="changePage(page)">
+                                : 'border-slate-200 bg-white text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'"
+                            @click="changePage(page)">
                             {{ page }}
                         </button>
 
                         <button type="button"
                             class="grid size-10 place-items-center rounded-full border border-slate-200 bg-white text-slate-500 disabled:opacity-40"
-                            :disabled="currentPage === totalPages
-                                " @click="changePage(currentPage + 1)">
+                            :disabled="currentPage === totalPages" @click="changePage(currentPage + 1)">
                             <Icon icon="mdi:chevron-right" />
                         </button>
                     </nav>
@@ -434,7 +488,6 @@ onBeforeUnmount(() => {
             <div v-if="toast"
                 class="fixed bottom-5 left-1/2 z-[80] flex -translate-x-1/2 items-center gap-2 rounded-full bg-[#063f22] px-5 py-3 text-xs font-semibold text-white shadow-2xl">
                 <Icon icon="mdi:check-circle" class="text-lg text-[#ffd326]" />
-
                 {{ toast }}
             </div>
         </Transition>

@@ -1,9 +1,20 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+
 import HeroBanner from "@/components/client/home/HeroBanner.vue";
 import HomeProductCard from "@/components/client/home/HomeProductCard.vue";
+
 import ClientHomeService from "@/services/clientHome.service";
+import WishlistService from "@/services/client/wishlist.service";
+
+import { useCartStore } from "@/stores/client/cartStore";
+import { useAuthStore } from "@/stores/shared/authStore";
+
+const router = useRouter();
+const cartStore = useCartStore();
+const authStore = useAuthStore();
 
 const favoriteIds = ref(new Set());
 const toastMessage = ref("");
@@ -70,6 +81,26 @@ const discountProducts = computed(() => {
   return saleProducts.value.length ? saleProducts.value : homeProducts.value.slice(4, 8);
 });
 
+function isLoggedIn() {
+  return Boolean(
+    authStore.user ||
+    authStore.isAuthenticated ||
+    authStore.isLoggedIn ||
+    localStorage.getItem("auth_user"),
+  );
+}
+
+function redirectToLogin() {
+  window.setTimeout(() => {
+    router.push({
+      name: "login",
+      query: {
+        redirect: router.currentRoute.value.fullPath,
+      },
+    });
+  }, 500);
+}
+
 function normalizeCategory(category, index) {
   const slug = category.slug || category.category_slug || "";
 
@@ -122,7 +153,7 @@ function normalizeProduct(product, index) {
   const stock = getProductStock(product);
 
   return {
-    id: product.id,
+    id: Number(product.id),
     brand: product.origin?.name || product.origin?.origin_name || product.brand || "AgriShop",
     name: product.name || product.product_name || "Sản phẩm",
     price,
@@ -135,12 +166,12 @@ function normalizeProduct(product, index) {
     raw: product,
     stock,
     firstPackageId:
+      product.first_package_id ||
       product.variants?.[0]?.packages?.[0]?.id ||
       product.packages?.[0]?.id ||
       null,
   };
 }
-
 
 function normalizePost(post) {
   return {
@@ -168,22 +199,104 @@ function showToast(message) {
   }, 2200);
 }
 
-function addToCart(product) {
-  showToast(`Đã chọn “${product.name}”. Phần thêm giỏ hàng sẽ gắn sau.`);
-}
-
-function toggleFavorite(product) {
-  const nextIds = new Set(favoriteIds.value);
-
-  if (nextIds.has(product.id)) {
-    nextIds.delete(product.id);
-    showToast("Đã bỏ khỏi danh sách yêu thích");
-  } else {
-    nextIds.add(product.id);
-    showToast("Đã thêm vào danh sách yêu thích");
+async function loadWishlistIds() {
+  if (!isLoggedIn()) {
+    favoriteIds.value = new Set();
+    return;
   }
 
-  favoriteIds.value = nextIds;
+  try {
+    const response = await WishlistService.getWishlist();
+
+    favoriteIds.value = new Set(
+      (response.data?.data || []).map((item) => Number(item.product_id)),
+    );
+  } catch (error) {
+    if (error.response?.status !== 401) {
+      console.error("Lỗi tải wishlist:", error);
+    }
+
+    favoriteIds.value = new Set();
+  }
+}
+
+async function addToCart(product) {
+  if (!product.firstPackageId) {
+    showToast("Sản phẩm này chưa có quy cách bán.");
+    return;
+  }
+
+  if (Number(product.stock || 0) <= 0) {
+    showToast("Sản phẩm đã hết hàng.");
+    return;
+  }
+
+  if (!isLoggedIn()) {
+    showToast("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
+    redirectToLogin();
+    return;
+  }
+
+  try {
+    await cartStore.addToCart({
+      package_id: product.firstPackageId,
+      quantity: 1,
+    });
+
+    showToast(`Đã thêm “${product.name}” vào giỏ hàng`);
+  } catch (error) {
+    console.error("Lỗi thêm vào giỏ:", error);
+
+    if (error.response?.status === 401) {
+      showToast("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
+      redirectToLogin();
+      return;
+    }
+
+    showToast(
+      cartStore.errorMsg ||
+      error.response?.data?.message ||
+      "Không thêm được sản phẩm vào giỏ hàng.",
+    );
+  }
+}
+
+async function toggleFavorite(product) {
+  if (!isLoggedIn()) {
+    showToast("Vui lòng đăng nhập để lưu sản phẩm yêu thích.");
+    redirectToLogin();
+    return;
+  }
+
+  try {
+    const response = await WishlistService.toggle(product.id);
+
+    const saved = Boolean(response.data?.data?.saved);
+    const nextIds = new Set(favoriteIds.value);
+
+    if (saved) {
+      nextIds.add(Number(product.id));
+      showToast("Đã thêm vào danh sách yêu thích");
+    } else {
+      nextIds.delete(Number(product.id));
+      showToast("Đã bỏ khỏi danh sách yêu thích");
+    }
+
+    favoriteIds.value = nextIds;
+  } catch (error) {
+    console.error("Lỗi cập nhật wishlist:", error);
+
+    if (error.response?.status === 401) {
+      showToast("Vui lòng đăng nhập để lưu sản phẩm yêu thích.");
+      redirectToLogin();
+      return;
+    }
+
+    showToast(
+      error.response?.data?.message ||
+      "Không cập nhật được danh sách yêu thích.",
+    );
+  }
 }
 
 async function fetchHomeData() {
@@ -223,6 +336,8 @@ async function fetchHomeData() {
     featuredProducts.value = featuredData.map(normalizeProduct);
     saleProducts.value = saleData.map(normalizeProduct);
     posts.value = newsData.slice(0, 3).map(normalizePost);
+
+    await loadWishlistIds();
   } catch (error) {
     console.error("Lỗi tải dữ liệu trang chủ:", error);
     errorMessage.value =
@@ -253,7 +368,6 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <!-- Danh mục -->
       <section class="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-10">
         <div class="mb-8 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
           <div>
@@ -309,7 +423,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Cam kết -->
       <section class="border-y border-[#dce8df] bg-[#f3f8f5]">
         <div class="mx-auto grid max-w-[1440px] gap-6 px-4 py-7 sm:grid-cols-2 sm:px-6 lg:grid-cols-4 lg:px-10">
           <div v-for="benefit in benefits" :key="benefit.title" class="flex items-center gap-4">
@@ -330,7 +443,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Sản phẩm nổi bật -->
       <section class="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-10">
         <div class="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -356,7 +468,7 @@ onBeforeUnmount(() => {
 
         <div v-else class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
           <HomeProductCard v-for="product in homeProducts" :key="product.id" :product="product"
-            :favorite="favoriteIds.has(product.id)" @add-cart="addToCart" @toggle-favorite="toggleFavorite" />
+            :favorite="favoriteIds.has(Number(product.id))" @add-cart="addToCart" @toggle-favorite="toggleFavorite" />
 
           <div v-if="!homeProducts.length"
             class="col-span-full rounded-2xl border border-slate-200 bg-slate-50 p-8 text-center text-sm text-slate-500">
@@ -365,7 +477,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Banner chẩn đoán -->
       <section class="mx-auto max-w-[1440px] px-4 pb-14 sm:px-6 lg:px-10">
         <div
           class="relative overflow-hidden rounded-3xl bg-[#064b26] px-6 py-10 text-white sm:px-10 lg:flex lg:items-center lg:justify-between lg:px-14">
@@ -396,7 +507,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Ưu đãi -->
       <section class="bg-[#f7faf8] py-14">
         <div class="mx-auto max-w-[1440px] px-4 sm:px-6 lg:px-10">
           <div class="mb-8 flex items-end justify-between gap-4">
@@ -425,7 +535,7 @@ onBeforeUnmount(() => {
 
           <div v-else class="grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
             <HomeProductCard v-for="product in discountProducts" :key="product.id" :product="product"
-              :favorite="favoriteIds.has(product.id)" @add-cart="addToCart" @toggle-favorite="toggleFavorite" />
+              :favorite="favoriteIds.has(Number(product.id))" @add-cart="addToCart" @toggle-favorite="toggleFavorite" />
 
             <div v-if="!discountProducts.length"
               class="col-span-full rounded-2xl border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">
@@ -435,8 +545,6 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <!-- Bài viết -->
-      <!-- Bài viết -->
       <section class="mx-auto max-w-[1440px] px-4 py-14 sm:px-6 lg:px-10">
         <div class="mb-8 flex items-end justify-between gap-4">
           <div>
@@ -461,7 +569,16 @@ onBeforeUnmount(() => {
         </div>
 
         <div v-else class="grid gap-6 md:grid-cols-3">
-          <RouterLink v-for="post in posts" :key="post.id" :to="post.slug ? `/news/${post.slug}` : '/news'"
+          <RouterLink v-for="post in posts" :key="post.id" :to="post.slug
+            ? {
+              name: 'news-detail',
+              params: {
+                slug: post.slug,
+              },
+            }
+            : {
+              name: 'news',
+            }"
             class="group overflow-hidden rounded-2xl border border-slate-200 bg-white transition hover:-translate-y-1 hover:shadow-xl">
             <div class="overflow-hidden">
               <img :src="post.image" :alt="post.title" loading="lazy" decoding="async"
@@ -498,7 +615,6 @@ onBeforeUnmount(() => {
       </section>
     </main>
 
-    <!-- Toast -->
     <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-3 opacity-0"
       enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-150"
       leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-3 opacity-0">

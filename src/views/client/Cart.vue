@@ -10,7 +10,7 @@ import { Icon } from "@iconify/vue";
 
 import CartItem from "@/components/client/cart/CartItem.vue";
 import CartSummary from "@/components/client/cart/CartSummary.vue";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore } from "@/stores/client/cartStore";
 
 const router = useRouter();
 const cartStore = useCartStore();

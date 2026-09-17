@@ -379,7 +379,7 @@
 import { Icon } from "@iconify/vue";
 import { computed, ref, watch } from "vue";
 import { useProductStore } from "@/stores/productStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useProductStore();
 const authStore = useAuthStore();

@@ -453,7 +453,7 @@
 import { Icon } from "@iconify/vue";
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useNewsStore } from "@/stores/newsStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useNewsStore();
 const authStore = useAuthStore();

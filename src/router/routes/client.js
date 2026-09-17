@@ -28,6 +28,8 @@ const Wishlist = () => import("@/views/client/Wishlist.vue");
 
 const News = () => import("@/views/client/News.vue");
 
+const NewsDetail = () => import("@/views/client/NewsDetail.vue");
+
 const Contact = () => import("@/views/client/Contact.vue");
 
 const Diagnosis = () => import("@/views/client/Diagnosis.vue");
@@ -90,6 +92,7 @@ const clientRoutes = [
         path: "diagnosis",
         name: "diagnosis",
         component: Diagnosis,
+
         meta: {
           title: "Chẩn đoán bệnh lúa",
           public: true,
@@ -100,6 +103,7 @@ const clientRoutes = [
         path: "wishlist",
         name: "wishlist",
         component: Wishlist,
+
         meta: {
           title: "Danh sách yêu thích",
           requiresAuth: true,
@@ -110,6 +114,7 @@ const clientRoutes = [
         path: "contact",
         name: "contact",
         component: Contact,
+
         meta: {
           title: "Liên hệ NFarmHouse",
           public: true,
@@ -120,8 +125,20 @@ const clientRoutes = [
         path: "news",
         name: "news",
         component: News,
+
         meta: {
           title: "Tin tức nông nghiệp",
+          public: true,
+        },
+      },
+
+      {
+        path: "news/:slug",
+        name: "news-detail",
+        component: NewsDetail,
+
+        meta: {
+          title: "Chi tiết bài viết",
           public: true,
         },
       },
@@ -195,6 +212,7 @@ const clientRoutes = [
             path: "orders/:id",
             name: "order-detail",
             component: OrderDetail,
+
             meta: {
               title: "Chi tiết đơn hàng",
             },

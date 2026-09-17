@@ -6,7 +6,7 @@ import {
 } from 'vue'
 
 import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/shared/authStore'
 
 const emit = defineEmits(['submitted'])
 

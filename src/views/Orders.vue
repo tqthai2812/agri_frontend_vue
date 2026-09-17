@@ -577,7 +577,7 @@
 import { Icon } from "@iconify/vue";
 import { computed, onMounted } from "vue";
 import { useOrderStore } from "@/stores/orderStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useOrderStore();
 const authStore = useAuthStore();

@@ -15,11 +15,15 @@ import {
 import { Icon } from "@iconify/vue";
 
 import ClientProductService from "@/services/clientProduct.service";
-import { useCartStore } from "@/stores/cartStore";
+import WishlistService from "@/services/client/wishlist.service";
+
+import { useCartStore } from "@/stores/client/cartStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const route = useRoute();
 const router = useRouter();
 const cartStore = useCartStore();
+const authStore = useAuthStore();
 
 const perPage = 9;
 
@@ -91,6 +95,26 @@ const activeSearch = computed(() => {
         ? route.query.search.trim()
         : "";
 });
+
+function isLoggedIn() {
+    return Boolean(
+        authStore.user ||
+        authStore.isAuthenticated ||
+        authStore.isLoggedIn ||
+        localStorage.getItem("auth_user"),
+    );
+}
+
+function redirectToLogin() {
+    window.setTimeout(() => {
+        router.push({
+            name: "login",
+            query: {
+                redirect: route.fullPath,
+            },
+        });
+    }, 500);
+}
 
 function parseOriginIds(value) {
     if (Array.isArray(value)) {
@@ -182,7 +206,7 @@ function normalizeProduct(product) {
     const stock = Number(product.total_stock || 0);
 
     return {
-        id: product.id,
+        id: Number(product.id),
 
         category:
             product.category?.slug ||
@@ -244,6 +268,27 @@ function showToast(message) {
     toastTimer = window.setTimeout(() => {
         toastMessage.value = "";
     }, 2200);
+}
+
+async function loadWishlistIds() {
+    if (!isLoggedIn()) {
+        favoriteIds.value = new Set();
+        return;
+    }
+
+    try {
+        const response = await WishlistService.getWishlist();
+
+        favoriteIds.value = new Set(
+            (response.data?.data || []).map((item) => Number(item.product_id)),
+        );
+    } catch (error) {
+        if (error.response?.status !== 401) {
+            console.error("Lỗi tải wishlist:", error);
+        }
+
+        favoriteIds.value = new Set();
+    }
 }
 
 async function fetchFilters() {
@@ -409,6 +454,12 @@ async function addToCart(product) {
         return;
     }
 
+    if (!isLoggedIn()) {
+        showToast("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
+        redirectToLogin();
+        return;
+    }
+
     try {
         await cartStore.addToCart({
             package_id: product.firstPackageId,
@@ -419,6 +470,12 @@ async function addToCart(product) {
     } catch (error) {
         console.error("Lỗi thêm vào giỏ:", error);
 
+        if (error.response?.status === 401) {
+            showToast("Vui lòng đăng nhập để thêm sản phẩm vào giỏ hàng.");
+            redirectToLogin();
+            return;
+        }
+
         showToast(
             cartStore.errorMsg ||
             error.response?.data?.message ||
@@ -427,18 +484,42 @@ async function addToCart(product) {
     }
 }
 
-function toggleFavorite(product) {
-    const nextIds = new Set(favoriteIds.value);
-
-    if (nextIds.has(product.id)) {
-        nextIds.delete(product.id);
-        showToast("Đã bỏ khỏi danh sách yêu thích");
-    } else {
-        nextIds.add(product.id);
-        showToast("Đã thêm vào danh sách yêu thích");
+async function toggleFavorite(product) {
+    if (!isLoggedIn()) {
+        showToast("Vui lòng đăng nhập để lưu sản phẩm yêu thích.");
+        redirectToLogin();
+        return;
     }
 
-    favoriteIds.value = nextIds;
+    try {
+        const response = await WishlistService.toggle(product.id);
+
+        const saved = Boolean(response.data?.data?.saved);
+        const nextIds = new Set(favoriteIds.value);
+
+        if (saved) {
+            nextIds.add(Number(product.id));
+            showToast("Đã thêm vào danh sách yêu thích");
+        } else {
+            nextIds.delete(Number(product.id));
+            showToast("Đã bỏ khỏi danh sách yêu thích");
+        }
+
+        favoriteIds.value = nextIds;
+    } catch (error) {
+        console.error("Lỗi cập nhật wishlist:", error);
+
+        if (error.response?.status === 401) {
+            showToast("Vui lòng đăng nhập để lưu sản phẩm yêu thích.");
+            redirectToLogin();
+            return;
+        }
+
+        showToast(
+            error.response?.data?.message ||
+            "Không cập nhật được danh sách yêu thích.",
+        );
+    }
 }
 
 function resetFilters() {
@@ -512,7 +593,10 @@ onMounted(async () => {
 
     ready.value = true;
 
-    await fetchProducts();
+    await Promise.all([
+        fetchProducts(),
+        loadWishlistIds(),
+    ]);
 });
 
 onBeforeUnmount(() => {
@@ -648,7 +732,8 @@ onBeforeUnmount(() => {
 
                             <button type="button" class="grid size-9 place-items-center rounded-full transition" :class="viewMode === 'list'
                                 ? 'bg-[#07532b] text-[#ffd326]'
-                                : 'bg-slate-100 text-slate-400'" aria-label="Xem dạng danh sách" @click="viewMode = 'list'">
+                                : 'bg-slate-100 text-slate-400'" aria-label="Xem dạng danh sách"
+                                @click="viewMode = 'list'">
                                 <Icon icon="mdi:view-list" class="text-xl" />
                             </button>
 
@@ -771,10 +856,11 @@ onBeforeUnmount(() => {
 
                                     <button type="button"
                                         class="grid size-9 place-items-center rounded-full border border-[#9fc1aa] transition hover:border-[#07532b] hover:bg-[#07532b] hover:text-white"
-                                        :class="favoriteIds.has(product.id)
+                                        :class="favoriteIds.has(Number(product.id))
                                             ? 'bg-[#07532b] text-white'
-                                            : 'text-[#07532b]'" aria-label="Yêu thích" @click="toggleFavorite(product)">
-                                        <Icon :icon="favoriteIds.has(product.id)
+                                            : 'text-[#07532b]'" aria-label="Yêu thích"
+                                        @click="toggleFavorite(product)">
+                                        <Icon :icon="favoriteIds.has(Number(product.id))
                                             ? 'mdi:heart'
                                             : 'mdi:heart-outline'" class="text-lg" />
                                     </button>
@@ -818,8 +904,8 @@ onBeforeUnmount(() => {
                             class="grid size-10 place-items-center rounded-full border text-xs font-bold transition"
                             :class="Number(meta.current_page || currentPage) === page
                                 ? 'border-[#07532b] bg-[#07532b] text-white'
-                                : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'" :disabled="loading"
-                            @click="changePage(page)">
+                                : 'border-slate-200 text-slate-500 hover:border-[#07532b] hover:text-[#07532b]'"
+                            :disabled="loading" @click="changePage(page)">
                             {{ page }}
                         </button>
 

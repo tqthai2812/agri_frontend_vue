@@ -152,7 +152,7 @@
 import { reactive, ref } from "vue";
 import { useRoute, useRouter, RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const route = useRoute();
 const router = useRouter();

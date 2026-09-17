@@ -1,237 +1,201 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Icon } from '@iconify/vue'
-import AccountOrderCard from '@/components/client/account/AccountOrderCard.vue'
-import { useRouter } from 'vue-router'
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { Icon } from "@iconify/vue";
+import { useRouter } from "vue-router";
 
-const router = useRouter()
+import AccountOrderCard from "@/components/client/account/AccountOrderCard.vue";
+import ClientOrderService from "@/services/client/clientOrder.service";
+import { useCartStore } from "@/stores/client/cartStore";
 
-const activeStatus = ref('all')
-const search = ref('')
-const toast = ref('')
+const router = useRouter();
+const cartStore = useCartStore();
+
+const activeStatus = ref("all");
+const search = ref("");
+const toast = ref("");
+const error = ref("");
+const loading = ref(false);
+const actionLoading = ref(false);
+
+const orders = ref([]);
+const statusCounts = ref({
+    all: 0,
+    pending: 0,
+    confirmed: 0,
+    shipping: 0,
+    completed: 0,
+    cancelled: 0,
+});
+
+const pagination = ref({
+    current_page: 1,
+    last_page: 1,
+    total: 0,
+});
+
+let searchTimer = null;
+let toastTimer = null;
 
 const tabs = [
-    { value: 'all', label: 'Tất cả' },
-    {
-        value: 'pending',
-        label: 'Chờ xác nhận',
-    },
-    {
-        value: 'confirmed',
-        label: 'Đã xác nhận',
-    },
-    {
-        value: 'shipping',
-        label: 'Vận chuyển',
-    },
-    {
-        value: 'completed',
-        label: 'Hoàn thành',
-    },
-    {
-        value: 'cancelled',
-        label: 'Đã hủy',
-    },
-]
-
-// Mock đúng cấu trúc:
-// orders -> items -> package -> variant -> product
-const orders = ref([
-    {
-        id: 32,
-        user_id: 3,
-        note: 'Gọi trước khi giao hàng',
-        delivery_id: 1,
-        discount_amount: 50000,
-        discount_id: 1,
-        delivery_cost: 0,
-        total_quantity: 1,
-        total_payment: 518000,
-        payment_method: 'COD',
-        order_status: 'completed',
-        created_at: '2026-08-28T11:25:00',
-
-        items: [
-            {
-                id: 321,
-                order_id: 32,
-                package_id: 211,
-                quantity: 1,
-                price_at_purchase: 568000,
-
-                package: {
-                    id: 211,
-                    sku: 'NPK-50KG',
-                    size: 50,
-                    unit: 'kg',
-
-                    variant: {
-                        id: 21,
-                        variant_name:
-                            'Bao nông nghiệp',
-
-                        product: {
-                            id: 102,
-                            product_name:
-                                'Phân bón NPK hữu cơ chuyên dùng cho cây lúa',
-
-                            images: [
-                                {
-                                    id: 2,
-                                    image_url:
-                                        'https://images.unsplash.com/photo-1625246333195-78d9c38ad449?auto=format&fit=crop&w=500&q=85',
-                                    is_primary: true,
-                                },
-                            ],
-                        },
-                    },
-                },
-            },
-        ],
-    },
-
-    {
-        id: 31,
-        user_id: 3,
-        note: '',
-        delivery_id: 1,
-        discount_amount: 0,
-        discount_id: null,
-        delivery_cost: 30000,
-        total_quantity: 2,
-        total_payment: 566000,
-        payment_method: 'VNPAY',
-        order_status: 'pending',
-        created_at: '2026-08-30T10:24:00',
-
-        items: [
-            {
-                id: 311,
-                order_id: 31,
-                package_id: 111,
-                quantity: 2,
-                price_at_purchase: 268000,
-
-                package: {
-                    id: 111,
-                    sku: 'RG-250ML',
-                    size: 250,
-                    unit: 'ml',
-
-                    variant: {
-                        id: 11,
-                        variant_name:
-                            'Chai tiêu chuẩn',
-
-                        product: {
-                            id: 101,
-                            product_name:
-                                'Rice Guard - Thuốc bảo vệ thực vật sinh học',
-
-                            images: [
-                                {
-                                    id: 1,
-                                    image_url:
-                                        'https://images.unsplash.com/photo-1592982537447-7440770cbfc9?auto=format&fit=crop&w=500&q=85',
-                                    is_primary: true,
-                                },
-                            ],
-                        },
-                    },
-                },
-            },
-        ],
-    },
-])
-
-const filteredOrders = computed(() => {
-    const keyword = search.value
-        .trim()
-        .toLowerCase()
-
-    return orders.value.filter((order) => {
-        const matchesStatus =
-            activeStatus.value === 'all' ||
-            order.order_status ===
-            activeStatus.value
-
-        const productNames = order.items
-            .map(
-                (item) =>
-                    item.package?.variant?.product
-                        ?.product_name || '',
-            )
-            .join(' ')
-            .toLowerCase()
-
-        const matchesSearch =
-            !keyword ||
-            String(order.id).includes(keyword) ||
-            productNames.includes(keyword)
-
-        return (
-            matchesStatus && matchesSearch
-        )
-    })
-})
+    { value: "all", label: "Tất cả" },
+    { value: "pending", label: "Chờ xác nhận" },
+    { value: "confirmed", label: "Đã xác nhận" },
+    { value: "shipping", label: "Vận chuyển" },
+    { value: "completed", label: "Hoàn thành" },
+    { value: "cancelled", label: "Đã hủy" },
+];
 
 function countStatus(status) {
-    if (status === 'all') {
-        return orders.value.length
-    }
-
-    return orders.value.filter(
-        (order) =>
-            order.order_status === status,
-    ).length
+    return Number(statusCounts.value?.[status] || 0);
 }
 
-function cancelOrder(order) {
-    if (
-        !window.confirm(
-            `Bạn có chắc muốn hủy đơn hàng #${order.id}?`,
-        )
-    ) {
-        return
-    }
+function showToast(message) {
+    toast.value = message;
 
-    order.order_status = 'cancelled'
-    toast.value =
-        `Đã hủy đơn hàng #${order.id}.`
+    window.clearTimeout(toastTimer);
 
-    // Backend:
-    // PATCH /api/orders/:id/cancel
+    toastTimer = window.setTimeout(() => {
+        toast.value = "";
+    }, 2600);
 }
 
-function buyAgain(order) {
-    const payload = order.items.map(
-        (item) => ({
-            package_id: item.package_id,
-            quantity: item.quantity,
-        }),
-    )
+async function fetchStatusCounts() {
+    try {
+        const response = await ClientOrderService.getStatusCounts();
 
-    console.log(
-        'Buy again payload:',
-        payload,
-    )
+        statusCounts.value = {
+            ...statusCounts.value,
+            ...(response.data?.data || {}),
+        };
+    } catch (err) {
+        console.error("Không tải được thống kê đơn hàng:", err);
+    }
+}
 
-    toast.value =
-        'Đã thêm lại sản phẩm vào giỏ hàng.'
+async function fetchOrders(page = 1) {
+    loading.value = true;
+    error.value = "";
 
-    // Backend:
-    // POST /api/cart/buy-again
+    try {
+        const params = {
+            page,
+            per_page: 10,
+            search: search.value || undefined,
+            order_status:
+                activeStatus.value === "all"
+                    ? undefined
+                    : activeStatus.value,
+        };
+
+        const response = await ClientOrderService.getOrders(params);
+
+        orders.value = response.data?.data || [];
+
+        pagination.value = {
+            current_page: response.data?.meta?.current_page || 1,
+            last_page: response.data?.meta?.last_page || 1,
+            total: response.data?.meta?.total || orders.value.length,
+        };
+    } catch (err) {
+        error.value =
+            err.response?.data?.message || "Không tải được danh sách đơn hàng.";
+    } finally {
+        loading.value = false;
+    }
+}
+
+function reloadOrders() {
+    fetchOrders(1);
+    fetchStatusCounts();
+}
+
+async function cancelOrder(order) {
+    const confirmed = window.confirm(
+        `Bạn có chắc muốn hủy đơn hàng #${order.id}?`,
+    );
+
+    if (!confirmed) {
+        return;
+    }
+
+    actionLoading.value = true;
+    error.value = "";
+
+    try {
+        await ClientOrderService.cancelOrder(order.id);
+
+        showToast(`Đã hủy đơn hàng #${order.id}.`);
+
+        await Promise.all([
+            fetchOrders(pagination.value.current_page),
+            fetchStatusCounts(),
+        ]);
+    } catch (err) {
+        error.value =
+            err.response?.data?.message || "Không hủy được đơn hàng.";
+    } finally {
+        actionLoading.value = false;
+    }
+}
+
+async function buyAgain(order) {
+    actionLoading.value = true;
+    error.value = "";
+
+    try {
+        for (const item of order.items || []) {
+            await cartStore.addToCart({
+                package_id: item.package_id,
+                quantity: item.quantity,
+            });
+        }
+
+        showToast("Đã thêm lại sản phẩm vào giỏ hàng.");
+
+        window.setTimeout(() => {
+            router.push({
+                name: "cart",
+            });
+        }, 500);
+    } catch (err) {
+        error.value =
+            err.response?.data?.message ||
+            cartStore.errorMsg ||
+            "Không thêm lại được sản phẩm vào giỏ hàng.";
+    } finally {
+        actionLoading.value = false;
+    }
 }
 
 function viewDetail(order) {
     router.push({
-        name: 'order-detail',
+        name: "order-detail",
         params: {
             id: order.id,
         },
-    })
+    });
 }
 
+watch(activeStatus, () => {
+    fetchOrders(1);
+});
+
+watch(search, () => {
+    window.clearTimeout(searchTimer);
+
+    searchTimer = window.setTimeout(() => {
+        fetchOrders(1);
+    }, 350);
+});
+
+onMounted(() => {
+    reloadOrders();
+});
+
+onBeforeUnmount(() => {
+    window.clearTimeout(searchTimer);
+    window.clearTimeout(toastTimer);
+});
 </script>
 
 <template>
@@ -249,8 +213,7 @@ function viewDetail(order) {
                         </h1>
 
                         <p class="mt-0.5 text-xs text-slate-400">
-                            Theo dõi, quản lý và mua lại sản
-                            phẩm từ các đơn hàng.
+                            Theo dõi, quản lý và mua lại sản phẩm từ các đơn hàng.
                         </p>
                     </div>
                 </div>
@@ -261,22 +224,16 @@ function viewDetail(order) {
                     <button v-for="tab in tabs" :key="tab.value" type="button"
                         class="relative flex items-center gap-1.5 px-4 py-4 text-xs font-semibold transition" :class="activeStatus === tab.value
                             ? 'text-[#07532b]'
-                            : 'text-slate-400 hover:text-[#07532b]'
-                            " @click="
-                                activeStatus = tab.value
-                                ">
+                            : 'text-slate-400 hover:text-[#07532b]'" @click="activeStatus = tab.value">
                         {{ tab.label }}
 
                         <span
                             class="grid min-w-5 place-items-center rounded-full bg-slate-100 px-1.5 py-0.5 text-[9px]">
-                            {{
-                                countStatus(tab.value)
-                            }}
+                            {{ countStatus(tab.value) }}
                         </span>
 
-                        <span v-if="
-                            activeStatus === tab.value
-                        " class="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#0a7139]"></span>
+                        <span v-if="activeStatus === tab.value"
+                            class="absolute inset-x-3 bottom-0 h-0.5 rounded-full bg-[#0a7139]"></span>
                     </button>
                 </div>
             </div>
@@ -301,7 +258,6 @@ function viewDetail(order) {
             class="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-xs font-semibold text-emerald-600">
             <span class="flex items-center gap-2">
                 <Icon icon="mdi:check-circle-outline" class="text-xl" />
-
                 {{ toast }}
             </span>
 
@@ -310,9 +266,46 @@ function viewDetail(order) {
             </button>
         </div>
 
-        <div v-if="filteredOrders.length" class="mt-5 space-y-5">
-            <AccountOrderCard v-for="order in filteredOrders" :key="order.id" :order="order" @cancel="cancelOrder"
-                @buy-again="buyAgain" @view-detail="viewDetail" />
+        <div v-if="error"
+            class="mt-4 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-500">
+            <Icon icon="mdi:alert-circle-outline" class="text-xl" />
+            {{ error }}
+        </div>
+
+        <div v-if="loading"
+            class="mt-5 grid min-h-72 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
+            <div class="text-center">
+                <Icon icon="mdi:loading" class="mx-auto text-5xl text-[#07532b] animate-spin" />
+
+                <p class="mt-3 text-xs font-semibold text-slate-400">
+                    Đang tải đơn hàng...
+                </p>
+            </div>
+        </div>
+
+        <div v-else-if="orders.length" class="mt-5 space-y-5">
+            <AccountOrderCard v-for="order in orders" :key="order.id" :order="order" :disabled="actionLoading"
+                @cancel="cancelOrder" @buy-again="buyAgain" @view-detail="viewDetail" />
+
+            <div v-if="pagination.last_page > 1" class="flex items-center justify-center gap-2 pt-2">
+                <button type="button"
+                    class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="pagination.current_page <= 1 || actionLoading"
+                    @click="fetchOrders(pagination.current_page - 1)">
+                    Trước
+                </button>
+
+                <span class="text-xs font-semibold text-slate-400">
+                    Trang {{ pagination.current_page }} / {{ pagination.last_page }}
+                </span>
+
+                <button type="button"
+                    class="rounded-full border border-slate-200 px-4 py-2 text-xs font-semibold text-slate-500 disabled:cursor-not-allowed disabled:opacity-40"
+                    :disabled="pagination.current_page >= pagination.last_page || actionLoading"
+                    @click="fetchOrders(pagination.current_page + 1)">
+                    Sau
+                </button>
+            </div>
         </div>
 
         <div v-else class="mt-5 rounded-3xl border border-slate-200 bg-white px-5 py-16 text-center shadow-sm">
@@ -323,8 +316,7 @@ function viewDetail(order) {
             </h2>
 
             <p class="mt-1 text-xs text-slate-400">
-                Thử thay đổi trạng thái hoặc từ khóa tìm
-                kiếm.
+                Thử thay đổi trạng thái hoặc từ khóa tìm kiếm.
             </p>
         </div>
     </section>

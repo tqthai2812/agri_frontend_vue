@@ -12,7 +12,7 @@ import { Icon } from "@iconify/vue";
 import AddressBookModal from "@/components/client/checkout/AddressBookModal.vue";
 import CheckoutProducts from "@/components/client/checkout/CheckoutProducts.vue";
 import CheckoutSummary from "@/components/client/checkout/CheckoutSummary.vue";
-import { useCartStore } from "@/stores/cartStore";
+import { useCartStore } from "@/stores/client/cartStore";
 
 const route = useRoute();
 const router = useRouter();
@@ -560,7 +560,7 @@ onBeforeUnmount(() => {
                                                 {{
                                                     method.base_price
                                                         ? formatVND(method.base_price)
-                                                : "Miễn phí"
+                                                        : "Miễn phí"
                                                 }}
                                             </span>
 
@@ -649,7 +649,7 @@ onBeforeUnmount(() => {
                                         {{
                                             cartStore.previewing
                                                 ? "Đang..."
-                                        : "Áp dụng"
+                                                : "Áp dụng"
                                         }}
                                     </button>
                                 </div>

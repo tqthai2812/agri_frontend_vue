@@ -7,7 +7,7 @@ import {
 } from 'vue'
 import { useRouter } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/shared/authStore'
 
 const authStore = useAuthStore()
 const router = useRouter()

@@ -2,347 +2,398 @@
 import {
     computed,
     onBeforeUnmount,
+    onMounted,
     ref,
-} from 'vue'
+} from "vue";
 
-import { useRouter } from 'vue-router'
-import { Icon } from '@iconify/vue'
+import { useRouter } from "vue-router";
+import { Icon } from "@iconify/vue";
 
-import ConfirmModal from '@/components/common/ConfirmModal.vue'
-import WishlistProductCard from '@/components/client/wishlist/WishlistProductCard.vue'
-import WishlistToolbar from '@/components/client/wishlist/WishlistToolbar.vue'
-import { wishlistMockItems } from '@/data/wishlistMockData'
+import ConfirmModal from "@/components/common/ConfirmModal.vue";
+import WishlistProductCard from "@/components/client/wishlist/WishlistProductCard.vue";
+import WishlistToolbar from "@/components/client/wishlist/WishlistToolbar.vue";
 
-const router = useRouter()
+import WishlistService from "@/services/client/wishlist.service";
+import { useCartStore } from "@/stores/client/cartStore";
 
-const search = ref('')
-const selectedCategory = ref('all')
-const sortBy = ref('newest')
-const viewMode = ref('grid')
-const selectedIds = ref(new Set())
-const removeIds = ref([])
-const showRemoveModal = ref(false)
-const removing = ref(false)
-const toast = ref(null)
+const router = useRouter();
+const cartStore = useCartStore();
 
-let toastTimer = null
+const search = ref("");
+const selectedCategory = ref("all");
+const sortBy = ref("newest");
+const viewMode = ref("grid");
 
-const wishlistItems = ref(wishlistMockItems)
+const selectedIds = ref(new Set());
+const removeIds = ref([]);
+const showRemoveModal = ref(false);
+
+const loading = ref(false);
+const removing = ref(false);
+const actionLoading = ref(false);
+
+const error = ref("");
+const toast = ref(null);
+
+let toastTimer = null;
+
+const wishlistItems = ref([]);
 
 const categories = computed(() => {
-    const categoryMap = new Map()
+    const categoryMap = new Map();
 
     wishlistItems.value.forEach((item) => {
-        const category = item.product?.category
+        const category = item.product?.category;
 
-        if (!category?.id) return
+        if (!category?.id) {
+            return;
+        }
 
-        const current = categoryMap.get(category.id)
+        const current = categoryMap.get(category.id);
 
         categoryMap.set(category.id, {
             id: category.id,
-            name: category.name,
+            name: category.name || category.category_name,
             count: Number(current?.count || 0) + 1,
-        })
-    })
+        });
+    });
 
-    return [...categoryMap.values()]
-})
+    return [...categoryMap.values()];
+});
 
 const filteredItems = computed(() => {
-    const keyword = search.value
-        .trim()
-        .toLocaleLowerCase('vi')
+    const keyword = search.value.trim().toLocaleLowerCase("vi");
 
-    const result = wishlistItems.value.filter(
-        (item) => {
-            const product = item.product || {}
+    const result = wishlistItems.value.filter((item) => {
+        const product = item.product || {};
 
-            const matchesSearch =
-                !keyword ||
-                product.product_name
-                    ?.toLocaleLowerCase('vi')
-                    .includes(keyword) ||
-                product.brand
-                    ?.toLocaleLowerCase('vi')
-                    .includes(keyword)
+        const productName = product.product_name || product.name || "";
+        const brand = product.brand || product.origin?.name || "";
+        const categoryName =
+            product.category?.name ||
+            product.category?.category_name ||
+            "";
 
-            const matchesCategory =
-                selectedCategory.value === 'all' ||
-                String(product.category?.id) ===
-                String(selectedCategory.value)
+        const matchesSearch =
+            !keyword ||
+            productName.toLocaleLowerCase("vi").includes(keyword) ||
+            brand.toLocaleLowerCase("vi").includes(keyword) ||
+            categoryName.toLocaleLowerCase("vi").includes(keyword);
 
-            return matchesSearch && matchesCategory
-        },
-    )
+        const matchesCategory =
+            selectedCategory.value === "all" ||
+            String(product.category?.id) === String(selectedCategory.value);
 
-    if (sortBy.value === 'price-asc') {
-        return [...result].sort(
-            (a, b) =>
-                Number(a.product?.min_price || 0) -
-                Number(b.product?.min_price || 0),
-        )
+        return matchesSearch && matchesCategory;
+    });
+
+    if (sortBy.value === "price-asc") {
+        return [...result].sort((a, b) => {
+            return Number(a.product?.min_price || 0) - Number(b.product?.min_price || 0);
+        });
     }
 
-    if (sortBy.value === 'price-desc') {
-        return [...result].sort(
-            (a, b) =>
-                Number(b.product?.min_price || 0) -
-                Number(a.product?.min_price || 0),
-        )
+    if (sortBy.value === "price-desc") {
+        return [...result].sort((a, b) => {
+            return Number(b.product?.min_price || 0) - Number(a.product?.min_price || 0);
+        });
     }
 
-    if (sortBy.value === 'name') {
-        return [...result].sort((a, b) =>
-            a.product.product_name.localeCompare(
-                b.product.product_name,
-                'vi',
-            ),
-        )
+    if (sortBy.value === "name") {
+        return [...result].sort((a, b) => {
+            const nameA = a.product?.product_name || a.product?.name || "";
+            const nameB = b.product?.product_name || b.product?.name || "";
+
+            return nameA.localeCompare(nameB, "vi");
+        });
     }
 
-    return [...result].sort(
-        (a, b) =>
-            new Date(b.created_at) -
-            new Date(a.created_at),
-    )
-})
+    return [...result].sort((a, b) => {
+        return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+});
 
 const selectedItems = computed(() => {
-    return wishlistItems.value.filter((item) =>
-        selectedIds.value.has(item.id),
-    )
-})
+    return wishlistItems.value.filter((item) => {
+        return selectedIds.value.has(Number(item.id));
+    });
+});
 
 const allVisibleSelected = computed(() => {
     return (
         filteredItems.value.length > 0 &&
-        filteredItems.value.every((item) =>
-            selectedIds.value.has(item.id),
-        )
-    )
-})
+        filteredItems.value.every((item) => {
+            return selectedIds.value.has(Number(item.id));
+        })
+    );
+});
 
 const removeMessage = computed(() => {
     if (removeIds.value.length > 1) {
-        return `Bạn có chắc muốn xóa ${removeIds.value.length} sản phẩm đã chọn khỏi danh sách yêu thích?`
+        return `Bạn có chắc muốn xóa ${removeIds.value.length} sản phẩm đã chọn khỏi danh sách yêu thích?`;
     }
 
-    const item = wishlistItems.value.find(
-        (wishlistItem) =>
-            wishlistItem.id === removeIds.value[0],
-    )
+    const item = wishlistItems.value.find((wishlistItem) => {
+        return Number(wishlistItem.id) === Number(removeIds.value[0]);
+    });
 
-    return `Bạn có chắc muốn xóa “${item?.product?.product_name || 'sản phẩm này'}” khỏi danh sách yêu thích?`
-})
+    return `Bạn có chắc muốn xóa “${item?.product?.product_name || item?.product?.name || "sản phẩm này"}” khỏi danh sách yêu thích?`;
+});
+
+function extractList(response) {
+    return response.data?.data || [];
+}
 
 function packagesOf(item) {
     return (item.product?.variants || [])
-        .flatMap(
-            (variant) => variant.packages || [],
-        )
-        .filter(
-            (pkg) =>
-                Number(pkg.quantity_available || 0) > 0,
-        )
+        .flatMap((variant) => {
+            return variant.packages || [];
+        })
+        .filter((pkg) => {
+            return Number(pkg.quantity_available || 0) > 0;
+        });
 }
 
-function showToast(message, type = 'success') {
+function showToast(message, type = "success") {
     toast.value = {
         message,
         type,
-    }
+    };
 
-    window.clearTimeout(toastTimer)
+    window.clearTimeout(toastTimer);
 
     toastTimer = window.setTimeout(() => {
-        toast.value = null
-    }, 3000)
+        toast.value = null;
+    }, 3000);
+}
+
+function syncSelectedAfterFetch() {
+    const validIds = new Set(
+        wishlistItems.value.map((item) => {
+            return Number(item.id);
+        }),
+    );
+
+    selectedIds.value = new Set(
+        [...selectedIds.value]
+            .map(Number)
+            .filter((id) => {
+                return validIds.has(id);
+            }),
+    );
+}
+
+async function fetchWishlist() {
+    loading.value = true;
+    error.value = "";
+
+    try {
+        const response = await WishlistService.getWishlist();
+
+        wishlistItems.value = extractList(response);
+
+        syncSelectedAfterFetch();
+    } catch (err) {
+        error.value =
+            err.response?.data?.message ||
+            "Không tải được danh sách yêu thích.";
+    } finally {
+        loading.value = false;
+    }
 }
 
 function toggleSelect(id) {
-    const nextIds = new Set(selectedIds.value)
+    const itemId = Number(id);
+    const nextIds = new Set(selectedIds.value);
 
-    if (nextIds.has(id)) {
-        nextIds.delete(id)
+    if (nextIds.has(itemId)) {
+        nextIds.delete(itemId);
     } else {
-        nextIds.add(id)
+        nextIds.add(itemId);
     }
 
-    selectedIds.value = nextIds
+    selectedIds.value = nextIds;
 }
 
 function toggleAllVisible() {
-    const nextIds = new Set(selectedIds.value)
+    const nextIds = new Set(selectedIds.value);
 
     if (allVisibleSelected.value) {
         filteredItems.value.forEach((item) => {
-            nextIds.delete(item.id)
-        })
+            nextIds.delete(Number(item.id));
+        });
     } else {
         filteredItems.value.forEach((item) => {
-            nextIds.add(item.id)
-        })
+            nextIds.add(Number(item.id));
+        });
     }
 
-    selectedIds.value = nextIds
+    selectedIds.value = nextIds;
 }
 
 function requestRemove(item) {
-    removeIds.value = [item.id]
-    showRemoveModal.value = true
+    removeIds.value = [Number(item.id)];
+    showRemoveModal.value = true;
 }
 
 function requestRemoveSelected() {
     if (!selectedIds.value.size) {
-        showToast(
-            'Hãy chọn ít nhất một sản phẩm.',
-            'error',
-        )
-
-        return
+        showToast("Hãy chọn ít nhất một sản phẩm.", "error");
+        return;
     }
 
-    removeIds.value = [...selectedIds.value]
-    showRemoveModal.value = true
+    removeIds.value = [...selectedIds.value].map(Number);
+    showRemoveModal.value = true;
 }
 
 async function confirmRemove() {
-    removing.value = true
+    if (!removeIds.value.length) {
+        return;
+    }
+
+    removing.value = true;
+    error.value = "";
 
     try {
-        // Backend:
-        // DELETE /api/wishlist/items
-        // Body: { ids: removeIds.value }
+        if (removeIds.value.length === 1) {
+            await WishlistService.removeItem(removeIds.value[0]);
+        } else {
+            await WishlistService.removeItems(removeIds.value);
+        }
 
-        await new Promise((resolve) => {
-            window.setTimeout(resolve, 450)
-        })
+        const removedIdSet = new Set(removeIds.value.map(Number));
 
-        const ids = new Set(removeIds.value)
+        wishlistItems.value = wishlistItems.value.filter((item) => {
+            return !removedIdSet.has(Number(item.id));
+        });
 
-        wishlistItems.value =
-            wishlistItems.value.filter(
-                (item) => !ids.has(item.id),
-            )
+        selectedIds.value = new Set(
+            [...selectedIds.value].filter((id) => {
+                return !removedIdSet.has(Number(id));
+            }),
+        );
 
-        const nextSelectedIds = new Set(
-            selectedIds.value,
-        )
-
-        removeIds.value.forEach((id) => {
-            nextSelectedIds.delete(id)
-        })
-
-        selectedIds.value = nextSelectedIds
-        showRemoveModal.value = false
+        showRemoveModal.value = false;
 
         showToast(
-            ids.size > 1
-                ? 'Đã xóa các sản phẩm được chọn.'
-                : 'Đã xóa khỏi danh sách yêu thích.',
-        )
+            removedIdSet.size > 1
+                ? "Đã xóa các sản phẩm được chọn."
+                : "Đã xóa khỏi danh sách yêu thích.",
+        );
 
-        removeIds.value = []
+        removeIds.value = [];
+    } catch (err) {
+        error.value =
+            err.response?.data?.message ||
+            "Không xóa được sản phẩm yêu thích.";
     } finally {
-        removing.value = false
+        removing.value = false;
     }
 }
 
-function addToCart(item) {
-    const packages = packagesOf(item)
+async function addToCart(item) {
+    const packages = packagesOf(item);
 
     if (!packages.length) {
-        showToast(
-            'Sản phẩm hiện đang hết hàng.',
-            'error',
-        )
-
-        return
+        showToast("Sản phẩm hiện đang hết hàng.", "error");
+        return;
     }
 
     if (packages.length !== 1) {
         router.push({
-            name: 'client-product-detail',
+            name: "client-product-detail",
             params: {
                 id: item.product_id,
             },
             query: {
-                from: 'wishlist',
+                from: "wishlist",
             },
-        })
+        });
 
-        return
+        return;
     }
 
-    const payload = {
-        package_id: packages[0].id,
-        quantity: 1,
+    actionLoading.value = true;
+    error.value = "";
+
+    try {
+        await cartStore.addToCart({
+            package_id: packages[0].id,
+            quantity: 1,
+        });
+
+        showToast(
+            `Đã thêm “${item.product?.product_name || item.product?.name || "sản phẩm"}” vào giỏ hàng.`,
+        );
+    } catch (err) {
+        error.value =
+            err.response?.data?.message ||
+            cartStore.errorMsg ||
+            "Không thêm được sản phẩm vào giỏ hàng.";
+    } finally {
+        actionLoading.value = false;
     }
-
-    console.log('Add cart payload:', payload)
-
-    showToast(
-        `Đã thêm “${item.product.product_name}” vào giỏ hàng.`,
-    )
-
-    // Backend:
-    // POST /api/cart/items
 }
 
-function addSelectedToCart() {
+async function addSelectedToCart() {
     if (!selectedItems.value.length) {
-        showToast(
-            'Hãy chọn ít nhất một sản phẩm.',
-            'error',
-        )
-
-        return
+        showToast("Hãy chọn ít nhất một sản phẩm.", "error");
+        return;
     }
 
-    const directItems = selectedItems.value.filter(
-        (item) => packagesOf(item).length === 1,
-    )
+    const directItems = selectedItems.value.filter((item) => {
+        return packagesOf(item).length === 1;
+    });
 
-    const needOptions =
-        selectedItems.value.length -
-        directItems.length
+    const needOptions = selectedItems.value.length - directItems.length;
 
-    const payload = directItems.map((item) => ({
-        package_id: packagesOf(item)[0].id,
-        quantity: 1,
-    }))
-
-    console.log(
-        'Add selected cart payload:',
-        payload,
-    )
-
-    if (!payload.length) {
+    if (!directItems.length) {
         showToast(
-            'Các sản phẩm đã chọn cần chọn phân loại hoặc đang hết hàng.',
-            'error',
-        )
+            "Các sản phẩm đã chọn cần chọn phân loại hoặc đang hết hàng.",
+            "error",
+        );
 
-        return
+        return;
     }
 
-    const suffix = needOptions
-        ? ` ${needOptions} sản phẩm còn lại cần chọn phân loại hoặc đang hết hàng.`
-        : ''
+    actionLoading.value = true;
+    error.value = "";
 
-    showToast(
-        `Đã thêm ${payload.length} sản phẩm vào giỏ hàng.${suffix}`,
-        needOptions ? 'warning' : 'success',
-    )
+    try {
+        for (const item of directItems) {
+            const pkg = packagesOf(item)[0];
 
-    // Backend:
-    // POST /api/cart/items/bulk
+            await cartStore.addToCart({
+                package_id: pkg.id,
+                quantity: 1,
+            });
+        }
+
+        const suffix = needOptions
+            ? ` ${needOptions} sản phẩm còn lại cần chọn phân loại hoặc đang hết hàng.`
+            : "";
+
+        showToast(
+            `Đã thêm ${directItems.length} sản phẩm vào giỏ hàng.${suffix}`,
+            needOptions ? "warning" : "success",
+        );
+    } catch (err) {
+        error.value =
+            err.response?.data?.message ||
+            cartStore.errorMsg ||
+            "Không thêm được sản phẩm vào giỏ hàng.";
+    } finally {
+        actionLoading.value = false;
+    }
 }
+
+onMounted(() => {
+    fetchWishlist();
+});
 
 onBeforeUnmount(() => {
-    window.clearTimeout(toastTimer)
-})
+    window.clearTimeout(toastTimer);
+});
 </script>
 
 <template>
@@ -390,9 +441,7 @@ onBeforeUnmount(() => {
                             </h1>
 
                             <p class="mt-2 max-w-xl text-xs leading-5 text-white/65">
-                                Lưu lại sản phẩm quan tâm, theo dõi
-                                giá và thêm vào giỏ hàng khi bạn sẵn
-                                sàng.
+                                Lưu lại sản phẩm quan tâm, theo dõi giá và thêm vào giỏ hàng khi bạn sẵn sàng.
                             </p>
                         </div>
                     </div>
@@ -415,19 +464,15 @@ onBeforeUnmount(() => {
                 <div v-if="toast"
                     class="fixed right-4 top-24 z-[80] flex max-w-sm items-start gap-3 rounded-2xl border bg-white px-4 py-3 text-xs font-semibold shadow-xl sm:right-6"
                     :class="{
-                        'border-emerald-100 text-emerald-700':
-                            toast.type === 'success',
-                        'border-amber-100 text-amber-700':
-                            toast.type === 'warning',
-                        'border-red-100 text-red-600':
-                            toast.type === 'error',
+                        'border-emerald-100 text-emerald-700': toast.type === 'success',
+                        'border-amber-100 text-amber-700': toast.type === 'warning',
+                        'border-red-100 text-red-600': toast.type === 'error',
                     }">
                     <Icon :icon="toast.type === 'error'
                         ? 'mdi:alert-circle-outline'
                         : toast.type === 'warning'
                             ? 'mdi:alert-outline'
-                            : 'mdi:check-circle-outline'
-                        " class="shrink-0 text-xl" />
+                            : 'mdi:check-circle-outline'" class="shrink-0 text-xl" />
 
                     <span class="leading-5">
                         {{ toast.message }}
@@ -439,20 +484,37 @@ onBeforeUnmount(() => {
                 </div>
             </Transition>
 
-            <section v-if="wishlistItems.length" class="mt-6">
+            <div v-if="error"
+                class="mt-5 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-500">
+                <Icon icon="mdi:alert-circle-outline" class="text-xl" />
+
+                {{ error }}
+            </div>
+
+            <section v-if="loading"
+                class="mt-6 grid min-h-72 place-items-center rounded-3xl border border-slate-200 bg-white shadow-sm">
+                <div class="text-center">
+                    <Icon icon="mdi:loading" class="mx-auto text-5xl text-[#07532b] animate-spin" />
+
+                    <p class="mt-3 text-xs font-semibold text-slate-400">
+                        Đang tải danh sách yêu thích...
+                    </p>
+                </div>
+            </section>
+
+            <section v-else-if="wishlistItems.length" class="mt-6">
                 <WishlistToolbar v-model:search="search" v-model:category="selectedCategory" v-model:sort="sortBy"
                     v-model:view="viewMode" :categories="categories" :result-count="filteredItems.length"
-                    :selected-count="selectedIds.size" :all-visible-selected="allVisibleSelected
-                        " @toggle-all="toggleAllVisible" @remove-selected="
-                            requestRemoveSelected
-                        " @add-selected="addSelectedToCart" />
+                    :selected-count="selectedIds.size" :all-visible-selected="allVisibleSelected"
+                    @toggle-all="toggleAllVisible" @remove-selected="requestRemoveSelected"
+                    @add-selected="addSelectedToCart" />
 
                 <div v-if="filteredItems.length" class="mt-5" :class="viewMode === 'grid'
                     ? 'grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4'
-                    : 'space-y-4'
-                    ">
-                    <WishlistProductCard v-for="item in filteredItems" :key="item.id" :item="item" :selected="selectedIds.has(item.id)
-                        " :view-mode="viewMode" @toggle-select="toggleSelect" @remove="requestRemove"
+                    : 'space-y-4'">
+                    <WishlistProductCard v-for="item in filteredItems" :key="item.id" :item="item"
+                        :selected="selectedIds.has(Number(item.id))" :view-mode="viewMode"
+                        :disabled="actionLoading || removing" @toggle-select="toggleSelect" @remove="requestRemove"
                         @add-cart="addToCart" />
                 </div>
 
@@ -496,8 +558,7 @@ onBeforeUnmount(() => {
                 </h2>
 
                 <p class="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                    Nhấn biểu tượng trái tim trên sản phẩm để
-                    lưu lại và xem nhanh tại đây.
+                    Nhấn biểu tượng trái tim trên sản phẩm để lưu lại và xem nhanh tại đây.
                 </p>
 
                 <RouterLink :to="{ name: 'client-products' }"

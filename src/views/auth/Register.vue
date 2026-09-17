@@ -264,7 +264,7 @@
 import { computed, reactive, ref } from "vue";
 import { useRouter, RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const router = useRouter();
 const authStore = useAuthStore();

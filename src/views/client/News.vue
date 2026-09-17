@@ -6,11 +6,17 @@ import {
     ref,
     watch,
 } from "vue";
+
+import { useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
+
 import NewsArticleCard from "@/components/client/news/NewsArticleCard.vue";
 import NewsSidebar from "@/components/client/news/NewsSidebar.vue";
 import NewsPreviewModal from "@/components/client/news/NewsPreviewModal.vue";
-import ClientHomeService from "@/services/clientHome.service";
+
+import ClientNewsService from "@/services/client/clientNews.service";
+
+const router = useRouter();
 
 const pageSize = 6;
 
@@ -21,8 +27,8 @@ const currentPage = ref(1);
 
 const selectedArticle = ref(null);
 const showPreview = ref(false);
-const toast = ref("");
 
+const toast = ref("");
 const loading = ref(false);
 const errorMessage = ref("");
 
@@ -44,11 +50,17 @@ const tags = computed(() => {
 
     articles.value.forEach((article) => {
         (article.tags || []).forEach((tag) => {
-            const current = tagMap.get(tag.id);
+            const tagId = tag.id || tag.tag_id || tag.name || tag.tag_name;
 
-            tagMap.set(tag.id, {
-                id: tag.id,
-                tag_name: tag.tag_name,
+            if (!tagId) {
+                return;
+            }
+
+            const current = tagMap.get(tagId);
+
+            tagMap.set(tagId, {
+                id: tagId,
+                tag_name: tag.tag_name || tag.name || "Chủ đề",
                 count: Number(current?.count || 0) + 1,
             });
         });
@@ -73,19 +85,25 @@ const filteredArticles = computed(() => {
 
         const matchesTag =
             activeTag.value === "all" ||
-            article.tags?.some((tag) => String(tag.id) === String(activeTag.value));
+            article.tags?.some((tag) => {
+                const tagId = tag.id || tag.tag_id || tag.name || tag.tag_name;
+
+                return String(tagId) === String(activeTag.value);
+            });
 
         return matchesSearch && matchesTag;
     });
 
     if (sortBy.value === "popular") {
-        return [...result].sort((a, b) => Number(b.views || 0) - Number(a.views || 0));
+        return [...result].sort((a, b) => {
+            return Number(b.views || 0) - Number(a.views || 0);
+        });
     }
 
     if (sortBy.value === "comments") {
-        return [...result].sort(
-            (a, b) => Number(b.comments_count || 0) - Number(a.comments_count || 0),
-        );
+        return [...result].sort((a, b) => {
+            return Number(b.comments_count || 0) - Number(a.comments_count || 0);
+        });
     }
 
     return [...result].sort((a, b) => {
@@ -117,22 +135,28 @@ watch([search, activeTag, sortBy], () => {
 });
 
 function normalizeArticle(article) {
-    const author = article.author || article.user || {
-        id: null,
-        name: "AgriShop",
-    };
+    const author =
+        article.author ||
+        article.user ||
+        article.created_by ||
+        {
+            id: null,
+            name: "NFarmHouse",
+        };
 
     return {
         id: article.id,
-
         title: article.title || "Bài viết",
         subtitle: article.subtitle || article.excerpt || "",
         content: article.content || "",
         excerpt: article.excerpt || "",
-
         slug: article.slug,
 
-        title_image_url: article.title_image_url || fallbackImage,
+        title_image_url:
+            article.title_image_url ||
+            article.image_url ||
+            article.image ||
+            fallbackImage,
 
         views: Number(article.views || 0),
         comments_count: Number(article.comments_count || 0),
@@ -142,7 +166,11 @@ function normalizeArticle(article) {
 
         tags: Array.isArray(article.tags) ? article.tags : [],
 
-        published_at: article.published_at,
+        published_at:
+            article.published_at ||
+            article.published_date ||
+            article.created_at,
+
         published_date:
             article.published_date ||
             (article.published_at
@@ -150,7 +178,6 @@ function normalizeArticle(article) {
                 : ""),
 
         created_at: article.created_at,
-
         raw: article,
     };
 }
@@ -160,7 +187,7 @@ async function fetchNews() {
     errorMessage.value = "";
 
     try {
-        const response = await ClientHomeService.getNews({
+        const response = await ClientNewsService.getNews({
             per_page: 100,
         });
 
@@ -184,20 +211,22 @@ async function openArticle(article) {
     selectedArticle.value = article;
     showPreview.value = true;
 
-    if (!article.slug) {
+    if (!article?.slug) {
         return;
     }
 
     try {
-        const response = await ClientHomeService.getNewsDetail(article.slug);
-        const detail = response.data?.data;
+        const response = await ClientNewsService.getNewsDetail(article.slug);
+        const detail = response.data?.data || response.data;
 
         if (detail) {
             const normalizedDetail = normalizeArticle(detail);
 
             selectedArticle.value = normalizedDetail;
 
-            const index = articles.value.findIndex((item) => item.id === detail.id);
+            const index = articles.value.findIndex((item) => {
+                return Number(item.id) === Number(normalizedDetail.id);
+            });
 
             if (index !== -1) {
                 articles.value[index] = normalizedDetail;
@@ -206,6 +235,24 @@ async function openArticle(article) {
     } catch (error) {
         console.error("Lỗi tải chi tiết bài viết:", error);
     }
+}
+
+function goToArticleDetail(article) {
+    const slug = article?.slug || selectedArticle.value?.slug;
+
+    if (!slug) {
+        showToast("Bài viết này chưa có đường dẫn chi tiết.");
+        return;
+    }
+
+    showPreview.value = false;
+
+    router.push({
+        name: "news-detail",
+        params: {
+            slug,
+        },
+    });
 }
 
 function selectTag(tagId) {
@@ -230,16 +277,20 @@ function changePage(page) {
     });
 }
 
-function subscribe(email) {
-    console.log("Newsletter email:", email);
-
-    toast.value = "Đăng ký nhận bản tin thành công.";
+function showToast(message) {
+    toast.value = message;
 
     window.clearTimeout(toastTimer);
 
     toastTimer = window.setTimeout(() => {
         toast.value = "";
     }, 2800);
+}
+
+function subscribe(email) {
+    console.log("Newsletter email:", email);
+
+    showToast("Đăng ký nhận bản tin thành công.");
 
     // Backend sau này:
     // POST /api/newsletter/subscriptions
@@ -333,7 +384,7 @@ onBeforeUnmount(() => {
                         <div class="mt-5 flex flex-wrap items-center gap-4 text-[10px] text-white/60">
                             <span class="flex items-center gap-1.5">
                                 <Icon icon="mdi:account-edit-outline" />
-                                {{ featuredArticles[0].user?.name || "AgriShop" }}
+                                {{ featuredArticles[0].user?.name || "NFarmHouse" }}
                             </span>
 
                             <span class="flex items-center gap-1.5">
@@ -361,7 +412,7 @@ onBeforeUnmount(() => {
 
                         <div class="absolute inset-x-0 bottom-0 p-5 text-white">
                             <span class="text-[9px] font-bold uppercase tracking-wide text-[#ffd326]">
-                                {{ article.tags?.[0]?.tag_name || "Bài viết" }}
+                                {{ article.tags?.[0]?.tag_name || article.tags?.[0]?.name || "Bài viết" }}
                             </span>
 
                             <h3 class="mt-2 line-clamp-2 text-base font-bold leading-6 sm:text-lg">
@@ -492,6 +543,6 @@ onBeforeUnmount(() => {
             </div>
         </Transition>
 
-        <NewsPreviewModal v-model="showPreview" :article="selectedArticle" />
+        <NewsPreviewModal v-model="showPreview" :article="selectedArticle" @view-detail="goToArticleDetail" />
     </div>
 </template>

@@ -445,8 +445,8 @@
 <script setup>
 import { Icon } from "@iconify/vue";
 import { computed, onMounted, ref } from "vue";
-import { useUserStore } from "@/stores/userStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useUserStore } from "@/stores/admin/userStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useUserStore();
 const authStore = useAuthStore();

@@ -2,7 +2,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/shared/authStore'
 
 const route = useRoute()
 const authStore = useAuthStore()

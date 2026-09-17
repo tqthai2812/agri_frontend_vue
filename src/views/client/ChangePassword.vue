@@ -1,105 +1,121 @@
 <script setup>
-import {
-    computed,
-    reactive,
-    ref,
-} from 'vue'
-import { Icon } from '@iconify/vue'
+import { computed, reactive, ref } from "vue";
+import { Icon } from "@iconify/vue";
+
+import ProfileService from "@/services/client/profile.service";
 
 const form = reactive({
-    current_password: '',
-    password: '',
-    password_confirmation: '',
-})
+    current_password: "",
+    password: "",
+    password_confirmation: "",
+});
 
 const show = reactive({
     current: false,
     password: false,
     confirmation: false,
-})
+});
 
-const saving = ref(false)
-const message = ref('')
-const error = ref('')
+const saving = ref(false);
+const message = ref("");
+const error = ref("");
+const errors = ref({});
 
 const passwordStrength = computed(() => {
-    const password = form.password
-    let score = 0
+    const password = form.password;
+    let score = 0;
 
-    if (password.length >= 8) score++
-    if (/[A-Z]/.test(password)) score++
-    if (/[0-9]/.test(password)) score++
+    if (password.length >= 8) {
+        score++;
+    }
+
+    if (/[A-Z]/.test(password)) {
+        score++;
+    }
+
+    if (/[0-9]/.test(password)) {
+        score++;
+    }
+
     if (/[^A-Za-z0-9]/.test(password)) {
-        score++
+        score++;
     }
 
     const labels = [
-        'Chưa nhập',
-        'Yếu',
-        'Trung bình',
-        'Khá',
-        'Mạnh',
-    ]
+        "Chưa nhập",
+        "Yếu",
+        "Trung bình",
+        "Khá",
+        "Mạnh",
+    ];
 
     const colors = [
-        'bg-slate-200',
-        'bg-red-400',
-        'bg-amber-400',
-        'bg-blue-500',
-        'bg-emerald-500',
-    ]
+        "bg-slate-200",
+        "bg-red-400",
+        "bg-amber-400",
+        "bg-blue-500",
+        "bg-emerald-500",
+    ];
 
     return {
         score,
         label: labels[score],
         color: colors[score],
-    }
-})
+    };
+});
+
+function firstValidationError(payload) {
+    const validationErrors = payload?.errors || {};
+    const firstKey = Object.keys(validationErrors)[0];
+
+    return firstKey ? validationErrors[firstKey]?.[0] : null;
+}
+
+function fieldError(field) {
+    return errors.value?.[field]?.[0] || "";
+}
+
+function resetForm() {
+    Object.assign(form, {
+        current_password: "",
+        password: "",
+        password_confirmation: "",
+    });
+}
 
 async function submit() {
-    error.value = ''
-    message.value = ''
+    error.value = "";
+    message.value = "";
+    errors.value = {};
 
     if (form.password.length < 8) {
-        error.value =
-            'Mật khẩu mới phải có ít nhất 8 ký tự.'
-
-        return
+        error.value = "Mật khẩu mới phải có ít nhất 8 ký tự.";
+        return;
     }
 
-    if (
-        form.password !==
-        form.password_confirmation
-    ) {
-        error.value =
-            'Xác nhận mật khẩu không khớp.'
-
-        return
+    if (form.password !== form.password_confirmation) {
+        error.value = "Xác nhận mật khẩu không khớp.";
+        return;
     }
 
-    saving.value = true
+    saving.value = true;
 
     try {
-        // Backend:
-        // await apiClient.put(
-        //   '/api/profile/password',
-        //   form,
-        // )
-
-        await new Promise((resolve) =>
-            setTimeout(resolve, 600),
-        )
+        const response = await ProfileService.changePassword(form);
 
         message.value =
-            'Đổi mật khẩu thành công.'
+            response.data?.message || "Đổi mật khẩu thành công.";
 
-        Object.assign(form, {
-            current_password: '',
-            password: '',
-            password_confirmation: '',
-        })
+        resetForm();
+    } catch (err) {
+        errors.value = err.response?.data?.errors || {};
+
+        error.value =
+            firstValidationError(err.response?.data) ||
+            err.response?.data?.message ||
+            "Không đổi được mật khẩu.";
     } finally {
-        saving.value = false
+        saving.value = false;
     }
 }
 </script>
@@ -118,8 +134,7 @@ async function submit() {
                     </h1>
 
                     <p class="mt-0.5 text-xs text-slate-400">
-                        Sử dụng mật khẩu mạnh để bảo vệ tài
-                        khoản.
+                        Sử dụng mật khẩu mạnh để bảo vệ tài khoản.
                     </p>
                 </div>
             </div>
@@ -147,21 +162,21 @@ async function submit() {
                     <div class="relative">
                         <Icon icon="mdi:lock-outline" class="password-left-icon" />
 
-                        <input v-model="form.current_password
-                            " :type="show.current
-                                ? 'text'
-                                : 'password'
-                                " class="password-input" autocomplete="current-password" placeholder="Nhập mật khẩu hiện tại" />
+                        <input v-model="form.current_password" :type="show.current ? 'text' : 'password'"
+                            class="password-input" autocomplete="current-password"
+                            placeholder="Nhập mật khẩu hiện tại" />
 
-                        <button type="button" class="password-eye" @click="
-                            show.current = !show.current
-                            ">
+                        <button type="button" class="password-eye" @click="show.current = !show.current">
                             <Icon :icon="show.current
                                 ? 'mdi:eye-off-outline'
-                                : 'mdi:eye-outline'
-                                " />
+                                : 'mdi:eye-outline'" />
                         </button>
                     </div>
+
+                    <small v-if="fieldError('current_password')"
+                        class="mt-1.5 block text-[10px] font-semibold text-red-500">
+                        {{ fieldError("current_password") }}
+                    </small>
                 </label>
 
                 <label class="block">
@@ -172,29 +187,25 @@ async function submit() {
                     <div class="relative">
                         <Icon icon="mdi:key-outline" class="password-left-icon" />
 
-                        <input v-model="form.password" :type="show.password
-                            ? 'text'
-                            : 'password'
-                            " class="password-input" autocomplete="new-password" placeholder="Nhập mật khẩu mới" />
+                        <input v-model="form.password" :type="show.password ? 'text' : 'password'"
+                            class="password-input" autocomplete="new-password" placeholder="Nhập mật khẩu mới" />
 
-                        <button type="button" class="password-eye" @click="
-                            show.password =
-                            !show.password
-                            ">
+                        <button type="button" class="password-eye" @click="show.password = !show.password">
                             <Icon :icon="show.password
                                 ? 'mdi:eye-off-outline'
-                                : 'mdi:eye-outline'
-                                " />
+                                : 'mdi:eye-outline'" />
                         </button>
                     </div>
 
+                    <small v-if="fieldError('password')" class="mt-1.5 block text-[10px] font-semibold text-red-500">
+                        {{ fieldError("password") }}
+                    </small>
+
                     <div class="mt-2 flex items-center gap-3">
                         <div class="grid flex-1 grid-cols-4 gap-1">
-                            <span v-for="index in 4" :key="index" class="h-1.5 rounded-full" :class="index <=
-                                passwordStrength.score
+                            <span v-for="index in 4" :key="index" class="h-1.5 rounded-full" :class="index <= passwordStrength.score
                                 ? passwordStrength.color
-                                : 'bg-slate-200'
-                                "></span>
+                                : 'bg-slate-200'"></span>
                         </div>
 
                         <span class="w-16 text-right text-[10px] font-semibold text-slate-400">
@@ -211,22 +222,20 @@ async function submit() {
                     <div class="relative">
                         <Icon icon="mdi:key-check-outline" class="password-left-icon" />
 
-                        <input v-model="form.password_confirmation
-                            " :type="show.confirmation
-                                ? 'text'
-                                : 'password'
-                                " class="password-input" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" />
+                        <input v-model="form.password_confirmation" :type="show.confirmation ? 'text' : 'password'"
+                            class="password-input" autocomplete="new-password" placeholder="Nhập lại mật khẩu mới" />
 
-                        <button type="button" class="password-eye" @click="
-                            show.confirmation =
-                            !show.confirmation
-                            ">
+                        <button type="button" class="password-eye" @click="show.confirmation = !show.confirmation">
                             <Icon :icon="show.confirmation
                                 ? 'mdi:eye-off-outline'
-                                : 'mdi:eye-outline'
-                                " />
+                                : 'mdi:eye-outline'" />
                         </button>
                     </div>
+
+                    <small v-if="fieldError('password_confirmation')"
+                        class="mt-1.5 block text-[10px] font-semibold text-red-500">
+                        {{ fieldError("password_confirmation") }}
+                    </small>
                 </label>
 
                 <button type="submit"
@@ -234,16 +243,14 @@ async function submit() {
                     :disabled="saving">
                     <Icon :icon="saving
                         ? 'mdi:loading'
-                        : 'mdi:shield-key-outline'
-                        " :class="saving
+                        : 'mdi:shield-key-outline'" :class="saving
                             ? 'animate-spin text-lg'
-                            : 'text-lg'
-                            " />
+                            : 'text-lg'" />
 
                     {{
                         saving
-                            ? 'Đang cập nhật...'
-                            : 'Cập nhật mật khẩu'
+                            ? "Đang cập nhật..."
+                            : "Cập nhật mật khẩu"
                     }}
                 </button>
             </form>

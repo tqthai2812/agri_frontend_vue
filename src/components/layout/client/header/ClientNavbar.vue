@@ -1,7 +1,7 @@
 <script setup>
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 import CategoryDropdown from "./CategoryDropdown.vue";
 
 defineProps({

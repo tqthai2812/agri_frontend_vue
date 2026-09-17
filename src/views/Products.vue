@@ -265,7 +265,7 @@
 import { Icon } from "@iconify/vue";
 import { computed, onMounted } from "vue";
 import { useProductStore } from "@/stores/productStore";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 import ProductModal from "@/components/ui/ProductModal.vue";
 
 const store = useProductStore();

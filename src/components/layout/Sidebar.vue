@@ -77,7 +77,7 @@ import { ref } from "vue";
 import { Icon } from '@iconify/vue'
 import { useRoute, useRouter } from "vue-router";
 import { useAppStore } from '@/stores/appStore'
-import { useAuthStore } from '@/stores/authStore'
+import { useAuthStore } from '@/stores/shared/authStore'
 import ConfirmModal from "@/components/common/ConfirmModal.vue";
 
 defineProps({

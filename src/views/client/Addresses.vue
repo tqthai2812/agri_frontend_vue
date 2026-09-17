@@ -1,147 +1,169 @@
 <script setup>
-import { computed, ref } from 'vue'
-import { Icon } from '@iconify/vue'
-import AddressBookModal from '@/components/client/checkout/AddressBookModal.vue'
+import { computed, onMounted, ref } from "vue";
+import { Icon } from "@iconify/vue";
 
-const addresses = ref([
-    {
-        id: 1,
-        user_id: 3,
-        receiver_name: 'Trần Quốc Thái',
-        receiver_phone: '0334745378',
-        province: 'Thành phố Cần Thơ',
-        district: 'Quận Ninh Kiều',
-        ward: 'Phường Hưng Lợi',
-        address_detail:
-            '30/4, đường 3 Tháng 2',
-        address_type: 'home',
-        is_default: true,
-    },
-    {
-        id: 2,
-        user_id: 3,
-        receiver_name: 'Trần Quốc Thái',
-        receiver_phone: '0334745378',
-        province: 'Thành phố Cần Thơ',
-        district: 'Quận Ninh Kiều',
-        ward: 'Phường Tân An',
-        address_detail:
-            'Văn phòng NFarmHouse, đường Hai Bà Trưng',
-        address_type: 'office',
-        is_default: false,
-    },
-])
+import AddressBookModal from "@/components/client/checkout/AddressBookModal.vue";
+import ShippingAddressService from "@/services/client/shippingAddress.service";
 
-const modalOpen = ref(false)
-const selectedAddressId = ref(1)
-const editingAddressId = ref(null)
-const message = ref('')
+const addresses = ref([]);
+const modalOpen = ref(false);
+const selectedAddressId = ref(null);
+const editingAddressId = ref(null);
+
+const loading = ref(false);
+const saving = ref(false);
+const message = ref("");
+const error = ref("");
 
 const sortedAddresses = computed(() => {
-    return [...addresses.value].sort(
-        (a, b) =>
-            Number(b.is_default) -
-            Number(a.is_default),
-    )
-})
+    return [...addresses.value].sort((a, b) => {
+        return Number(b.is_default) - Number(a.is_default);
+    });
+});
 
-function saveAddress(payload) {
-    if (payload.is_default) {
-        addresses.value.forEach((address) => {
-            address.is_default = false
-        })
-    }
-
-    if (payload.id) {
-        const index = addresses.value.findIndex(
-            (address) => address.id === payload.id,
-        )
-
-        if (index !== -1) {
-            addresses.value[index] = {
-                ...addresses.value[index],
-                ...payload,
-            }
-        }
-
-        message.value =
-            'Cập nhật địa chỉ thành công.'
-
-        return
-    }
-
-    const newAddress = {
-        ...payload,
-
-        id:
-            Math.max(
-                0,
-                ...addresses.value.map((address) =>
-                    Number(address.id),
-                ),
-            ) + 1,
-
-        user_id: 3,
-    }
-
-    addresses.value.push(newAddress)
-    selectedAddressId.value = newAddress.id
-
-    message.value =
-        'Thêm địa chỉ mới thành công.'
+function extractList(response) {
+    return response.data?.data || [];
 }
 
-function setDefault(addressId) {
-    addresses.value.forEach((address) => {
-        address.is_default =
-            address.id === addressId
-    })
+function extractOne(response) {
+    return response.data?.data || null;
+}
 
-    selectedAddressId.value = addressId
-    message.value =
-        'Đã đặt làm địa chỉ mặc định.'
+function setFlash(text, type = "success") {
+    message.value = type === "success" ? text : "";
+    error.value = type === "error" ? text : "";
+}
 
-    // Backend:
-    // PATCH /api/shipping-addresses/:id/default
+async function fetchAddresses() {
+    loading.value = true;
+    error.value = "";
+
+    try {
+        const response = await ShippingAddressService.getAddresses();
+
+        addresses.value = extractList(response);
+
+        const defaultAddress =
+            addresses.value.find((address) => address.is_default) ||
+            addresses.value[0] ||
+            null;
+
+        selectedAddressId.value = defaultAddress?.id || null;
+    } catch (err) {
+        setFlash(
+            err.response?.data?.message || "Không tải được danh sách địa chỉ.",
+            "error",
+        );
+    } finally {
+        loading.value = false;
+    }
+}
+
+async function saveAddress(payload) {
+    saving.value = true;
+    error.value = "";
+    message.value = "";
+
+    try {
+        const { id, ...data } = payload;
+
+        const response = id
+            ? await ShippingAddressService.update(id, data)
+            : await ShippingAddressService.create(data);
+
+        const savedAddress = extractOne(response);
+
+        await fetchAddresses();
+
+        if (savedAddress?.id) {
+            selectedAddressId.value = savedAddress.id;
+        }
+
+        editingAddressId.value = null;
+        modalOpen.value = false;
+
+        setFlash(
+            id
+                ? "Cập nhật địa chỉ thành công."
+                : "Thêm địa chỉ mới thành công.",
+        );
+    } catch (err) {
+        setFlash(
+            err.response?.data?.message || "Không lưu được địa chỉ.",
+            "error",
+        );
+    } finally {
+        saving.value = false;
+    }
+}
+
+async function setDefault(addressId) {
+    saving.value = true;
+    error.value = "";
+    message.value = "";
+
+    try {
+        await ShippingAddressService.setDefault(addressId);
+        await fetchAddresses();
+
+        selectedAddressId.value = addressId;
+
+        setFlash("Đã đặt làm địa chỉ mặc định.");
+    } catch (err) {
+        setFlash(
+            err.response?.data?.message || "Không đặt được địa chỉ mặc định.",
+            "error",
+        );
+    } finally {
+        saving.value = false;
+    }
 }
 
 function editAddress(address) {
-    selectedAddressId.value = address.id
-    editingAddressId.value = address.id
-    modalOpen.value = true
+    selectedAddressId.value = address.id;
+    editingAddressId.value = address.id;
+    modalOpen.value = true;
 }
 
 function openCreateAddress() {
-    editingAddressId.value = null
-    modalOpen.value = true
+    editingAddressId.value = null;
+    modalOpen.value = true;
 }
 
-function deleteAddress(address) {
+async function deleteAddress(address) {
     if (address.is_default) {
-        window.alert(
-            'Không thể xóa địa chỉ mặc định.',
-        )
-
-        return
+        window.alert("Không thể xóa địa chỉ mặc định.");
+        return;
     }
 
-    if (
-        !window.confirm(
-            'Bạn có chắc muốn xóa địa chỉ này?',
-        )
-    ) {
-        return
+    const confirmed = window.confirm("Bạn có chắc muốn xóa địa chỉ này?");
+
+    if (!confirmed) {
+        return;
     }
 
-    addresses.value = addresses.value.filter(
-        (item) => item.id !== address.id,
-    )
+    saving.value = true;
+    error.value = "";
+    message.value = "";
 
-    message.value = 'Đã xóa địa chỉ.'
+    try {
+        await ShippingAddressService.remove(address.id);
+        await fetchAddresses();
 
-    // Backend:
-    // DELETE /api/shipping-addresses/:id
+        setFlash("Đã xóa địa chỉ.");
+    } catch (err) {
+        setFlash(
+            err.response?.data?.message || "Không xóa được địa chỉ.",
+            "error",
+        );
+    } finally {
+        saving.value = false;
+    }
 }
+
+onMounted(() => {
+    fetchAddresses();
+});
 </script>
 
 <template>
@@ -165,8 +187,8 @@ function deleteAddress(address) {
             </div>
 
             <button type="button"
-                class="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#07532b] px-5 text-xs font-bold text-white transition hover:bg-[#0a6837]"
-                @click="openCreateAddress">
+                class="inline-flex h-10 items-center justify-center gap-2 rounded-full bg-[#07532b] px-5 text-xs font-bold text-white transition hover:bg-[#0a6837] disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="saving" @click="openCreateAddress">
                 <Icon icon="mdi:plus" class="text-lg" />
                 Thêm địa chỉ mới
             </button>
@@ -179,21 +201,35 @@ function deleteAddress(address) {
                 {{ message }}
             </div>
 
-            <div v-if="sortedAddresses.length" class="space-y-4">
+            <div v-if="error"
+                class="mb-5 flex items-center gap-2 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-xs font-semibold text-red-500">
+                <Icon icon="mdi:alert-circle-outline" class="text-xl" />
+                {{ error }}
+            </div>
+
+            <div v-if="loading"
+                class="grid min-h-52 place-items-center rounded-2xl border border-slate-100 bg-slate-50">
+                <div class="text-center">
+                    <Icon icon="mdi:loading" class="mx-auto text-4xl text-[#07532b] animate-spin" />
+
+                    <p class="mt-3 text-xs font-semibold text-slate-400">
+                        Đang tải địa chỉ...
+                    </p>
+                </div>
+            </div>
+
+            <div v-else-if="sortedAddresses.length" class="space-y-4">
                 <article v-for="address in sortedAddresses" :key="address.id" class="rounded-2xl border p-5 transition"
                     :class="address.is_default
                         ? 'border-[#8fb49c] bg-[#f7fbf8]'
-                        : 'border-slate-200 hover:border-[#b7cebf]'
-                        ">
+                        : 'border-slate-200 hover:border-[#b7cebf]'">
                     <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                         <div class="flex min-w-0 gap-3">
                             <span
                                 class="grid size-10 shrink-0 place-items-center rounded-full bg-[#edf5f0] text-[#07532b]">
-                                <Icon :icon="address.address_type ===
-                                    'office'
+                                <Icon :icon="address.address_type === 'office'
                                     ? 'mdi:office-building-outline'
-                                    : 'mdi:home-outline'
-                                    " class="text-xl" />
+                                    : 'mdi:home-outline'" class="text-xl" />
                             </span>
 
                             <div class="min-w-0">
@@ -215,47 +251,66 @@ function deleteAddress(address) {
                                 </div>
 
                                 <p class="mt-2 text-xs leading-5 text-slate-500">
-                                    {{ address.address_detail }},
-                                    {{ address.ward }},
-                                    {{ address.district }},
-                                    {{ address.province }}
+                                    {{ address.full_address || `${address.address_detail}, ${address.ward},
+                                    ${address.district}, ${address.province}` }}
                                 </p>
 
                                 <span
                                     class="mt-2 inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-[10px] text-slate-500">
                                     {{
-                                        address.address_type ===
-                                            'office'
-                                            ? 'Văn phòng'
-                                            : 'Nhà riêng'
+                                        address.address_type === "office"
+                                            ? "Văn phòng"
+                                            : "Nhà riêng"
                                     }}
                                 </span>
                             </div>
                         </div>
 
                         <div class="flex shrink-0 flex-wrap gap-3 text-xs font-semibold">
-                            <button type="button" class="text-[#0a7139] hover:underline" @click="editAddress(address)">
+                            <button type="button"
+                                class="text-[#0a7139] hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                                :disabled="saving" @click="editAddress(address)">
                                 Cập nhật
                             </button>
 
-                            <button type="button" class="text-red-400 hover:underline" @click="deleteAddress(address)">
+                            <button type="button"
+                                class="text-red-400 hover:underline disabled:cursor-not-allowed disabled:opacity-50"
+                                :disabled="saving || address.is_default" @click="deleteAddress(address)">
                                 Xóa
                             </button>
                         </div>
                     </div>
 
                     <button v-if="!address.is_default" type="button"
-                        class="mt-4 rounded-full border border-[#9dbba8] px-4 py-2 text-[10px] font-semibold text-[#07532b] transition hover:bg-[#edf5f0]"
-                        @click="setDefault(address.id)">
+                        class="mt-4 rounded-full border border-[#9dbba8] px-4 py-2 text-[10px] font-semibold text-[#07532b] transition hover:bg-[#edf5f0] disabled:cursor-not-allowed disabled:opacity-50"
+                        :disabled="saving" @click="setDefault(address.id)">
                         Thiết lập mặc định
                     </button>
                 </article>
             </div>
+
+            <div v-else class="rounded-3xl border border-dashed border-slate-200 bg-slate-50 px-5 py-14 text-center">
+                <Icon icon="mdi:map-marker-off-outline" class="mx-auto text-5xl text-slate-300" />
+
+                <h2 class="mt-4 text-base font-bold text-[#123d27]">
+                    Chưa có địa chỉ nhận hàng
+                </h2>
+
+                <p class="mt-1 text-xs text-slate-400">
+                    Thêm địa chỉ để checkout nhanh hơn.
+                </p>
+
+                <button type="button"
+                    class="mt-5 inline-flex h-10 items-center gap-2 rounded-full bg-[#07532b] px-5 text-xs font-bold text-white transition hover:bg-[#0a6837]"
+                    @click="openCreateAddress">
+                    <Icon icon="mdi:plus" class="text-lg" />
+                    Thêm địa chỉ
+                </button>
+            </div>
         </div>
 
-        <AddressBookModal v-model="modalOpen" :addresses="addresses" :selected-address-id="selectedAddressId
-            " :edit-address-id="editingAddressId" @confirm="
-                selectedAddressId = $event
-                " @save-address="saveAddress" />
+        <AddressBookModal v-model="modalOpen" :addresses="addresses" :selected-address-id="selectedAddressId"
+            :edit-address-id="editingAddressId" :saving="saving" @confirm="selectedAddressId = Number($event)"
+            @save-address="saveAddress" />
     </section>
 </template>

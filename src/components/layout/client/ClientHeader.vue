@@ -6,8 +6,8 @@ import ClientMobileMenu from "./header/ClientMobileMenu.vue";
 import SearchPanel from "./header/SearchPanel.vue";
 
 import ClientProductService from "@/services/clientProduct.service";
-import { useAuthStore } from "@/stores/authStore";
-import { useCartStore } from "@/stores/cartStore";
+import { useAuthStore } from "@/stores/shared/authStore";
+import { useCartStore } from "@/stores/client/cartStore";
 
 const authStore = useAuthStore();
 const cartStore = useCartStore();

@@ -1,6 +1,6 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
-import CartService from "@/services/cart.service";
+import CartService from "@/services/client/cart.service";
 import CheckoutService from "@/services/checkout.service";
 import ShippingAddressService from "@/services/shippingAddress.service";
 

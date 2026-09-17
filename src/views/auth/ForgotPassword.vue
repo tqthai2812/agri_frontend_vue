@@ -112,7 +112,7 @@
 import { ref } from "vue";
 import { RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/authStore";
+import { useAuthStore } from "@/stores/shared/authStore";
 
 const authStore = useAuthStore();
 

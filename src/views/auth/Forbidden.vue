@@ -1,26 +1,44 @@
-<template>
-    <div class="fixed inset-0 bg-bg flex items-center justify-center z-50 px-4">
-        <div class="w-full max-w-xl bg-surface rounded-3xl shadow-xl border border-border p-8 text-center">
-            <div class="w-20 h-20 rounded-3xl bg-red-50 flex items-center justify-center mx-auto mb-6">
-                <Icon icon="solar:shield-cross-bold-duotone" class="text-4xl text-red-500" />
-            </div>
-
-            <h1 class="text-2xl font-bold text-text">
-                Bạn không có quyền truy cập
-            </h1>
-
-            <p class="text-sm text-text-light mt-3">
-                Tài khoản của bạn chưa được cấp quyền để vào chức năng này.
-            </p>
-
-            <RouterLink to="/login" class="btn-primary inline-flex justify-center mt-6 px-5 py-3 rounded-xl">
-                Quay lại đăng nhập
-            </RouterLink>
-        </div>
-    </div>
-</template>
-
 <script setup>
 import { RouterLink } from "vue-router";
-import { Icon } from "@iconify/vue";
+import AuthLayout from "@/components/auth/AuthLayout.vue";
 </script>
+
+<template>
+    <AuthLayout title="Quyền truy cập">
+        <div class="nf-state-icon">
+            ⊘
+        </div>
+
+        <p class="nf-kicker">
+            THÔNG BÁO · 403
+        </p>
+
+        <h1>
+            Bạn chưa có quyền<br />
+            truy cập trang này
+        </h1>
+
+        <p class="nf-intro">
+            Tài khoản hiện tại chưa được cấp quyền sử dụng chức năng này.
+            Bạn vẫn có thể quay lại trang chủ để tiếp tục khám phá NFarmHouse.
+        </p>
+
+        <div class="nf-stack">
+            <RouterLink to="/" class="nf-button nf-primary">
+                <span>Về trang chủ</span>
+
+                <span class="nf-button-arrow">
+                    ›
+                </span>
+            </RouterLink>
+
+            <a href="mailto:nfarmhouse@gmail.com" class="nf-button nf-secondary">
+                Liên hệ hỗ trợ
+            </a>
+        </div>
+
+        <p class="nf-note">
+            Nếu bạn cho rằng đây là nhầm lẫn, hãy liên hệ người quản trị.
+        </p>
+    </AuthLayout>
+</template>

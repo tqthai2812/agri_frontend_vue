@@ -1,468 +1,548 @@
-<template>
-  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" @click.self="store.closeModal">
-    <div class="bg-surface rounded-2xl max-w-5xl w-full max-h-[92vh] overflow-y-auto">
-      <!-- Header -->
-      <div class="sticky top-0 bg-surface z-10 flex justify-between items-center p-6 border-b border-border">
-        <div>
-          <h2 class="text-xl font-bold">
-            {{ store.selectedProduct ? "Cập nhật sản phẩm" : "Thêm sản phẩm mới" }}
-          </h2>
-          <p class="text-sm text-text-light">
-            Quản lý thông tin sản phẩm, hình ảnh, biến thể và quy cách bán.
-          </p>
-        </div>
-
-        <button class="btn-outline-icon" @click="store.closeModal">
-          <Icon icon="solar:close-circle-bold" />
-        </button>
-      </div>
-
-      <form @submit.prevent="handleSubmit" class="p-6 space-y-6">
-        <!-- Error -->
-        <div v-if="store.errorMsg"
-          class="flex items-start gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-red-600 text-sm">
-          <Icon icon="solar:danger-circle-bold-duotone" class="text-xl shrink-0 mt-0.5" />
-          <span>{{ store.errorMsg }}</span>
-        </div>
-
-        <!-- Section: thông tin chung -->
-        <div class="section-card">
-          <div class="section-header">
-            <div>
-              <h3 class="section-title">Thông tin chung</h3>
-              <p class="section-desc">Thông tin chính của sản phẩm.</p>
-            </div>
-
-            <label class="flex items-center gap-3 cursor-pointer">
-              <span class="text-sm text-text-sec">Hiển thị sản phẩm</span>
-              <label class="toggle">
-                <input v-model="store.form.is_show" type="checkbox" />
-                <span class="toggle-slider"></span>
-              </label>
-            </label>
-          </div>
-
-          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div class="form-group md:col-span-3">
-              <label class="form-label">
-                Tên sản phẩm <span class="text-primary">*</span>
-              </label>
-
-              <input v-model.trim="store.form.product_name" class="form-control"
-                placeholder="Ví dụ: Phân bón hữu cơ cao cấp" />
-
-              <p v-if="fieldError('product_name')" class="error-text">
-                {{ fieldError("product_name") }}
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">
-                Danh mục <span class="text-primary">*</span>
-              </label>
-
-              <select v-model="store.form.category_id" class="form-control" @change="handleCategoryChange">
-                <option value="">Chọn danh mục</option>
-                <option v-for="category in store.categories" :key="category.id" :value="category.id">
-                  {{ category.name }}
-                </option>
-              </select>
-
-              <p v-if="fieldError('category_id')" class="error-text">
-                {{ fieldError("category_id") }}
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">
-                Danh mục con <span class="text-primary">*</span>
-              </label>
-
-              <select v-model="store.form.subcategory_id" class="form-control">
-                <option value="">Chọn danh mục con</option>
-                <option v-for="subcategory in store.subcategories" :key="subcategory.id" :value="subcategory.id">
-                  {{ subcategory.name }}
-                </option>
-              </select>
-
-              <p v-if="fieldError('subcategory_id')" class="error-text">
-                {{ fieldError("subcategory_id") }}
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">
-                Xuất xứ <span class="text-primary">*</span>
-              </label>
-
-              <select v-model="store.form.origin_id" class="form-control">
-                <option value="">Chọn xuất xứ</option>
-                <option v-for="origin in store.origins" :key="origin.id" :value="origin.id">
-                  {{ origin.origin_name }}
-                </option>
-              </select>
-
-              <p v-if="fieldError('origin_id')" class="error-text">
-                {{ fieldError("origin_id") }}
-              </p>
-            </div>
-          </div>
-
-          <div class="grid grid-cols-1 gap-4 mt-4">
-            <div class="form-group">
-              <label class="form-label">Mô tả</label>
-
-              <textarea v-model.trim="store.form.description" class="form-control" rows="3"
-                placeholder="Mô tả sản phẩm..."></textarea>
-
-              <p v-if="fieldError('description')" class="error-text">
-                {{ fieldError("description") }}
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Hướng dẫn sử dụng</label>
-
-              <textarea v-model.trim="store.form.usage_instructions" class="form-control" rows="3"
-                placeholder="Hướng dẫn sử dụng sản phẩm..."></textarea>
-
-              <p v-if="fieldError('usage_instructions')" class="error-text">
-                {{ fieldError("usage_instructions") }}
-              </p>
-            </div>
-
-            <div class="form-group">
-              <label class="form-label">Cảnh báo an toàn</label>
-
-              <textarea v-model.trim="store.form.safety_warning" class="form-control" rows="3"
-                placeholder="Cảnh báo an toàn nếu có..."></textarea>
-
-              <p v-if="fieldError('safety_warning')" class="error-text">
-                {{ fieldError("safety_warning") }}
-              </p>
-            </div>
-          </div>
-        </div>
-
-        <!-- Section: hình ảnh -->
-        <div class="section-card">
-          <div class="section-header">
-            <div>
-              <h3 class="section-title">Hình ảnh sản phẩm</h3>
-              <p class="section-desc">
-                Có thể tải nhiều ảnh, ảnh đầu tiên mặc định là ảnh chính.
-              </p>
-            </div>
-          </div>
-
-          <div class="upload-area cursor-pointer" @click="triggerFileInput">
-            <Icon icon="solar:cloud-upload-bold" class="text-4xl mx-auto mb-2" />
-            <p class="text-sm">
-              Bấm để <span class="text-primary font-semibold">chọn file</span>
-            </p>
-            <p class="text-xs text-text-light mt-1">
-              PNG, JPG, JPEG, WEBP. Tối đa 8 ảnh, mỗi ảnh 5MB.
-            </p>
-
-            <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/jpg,image/webp" multiple
-              class="hidden" @change="handleImagesChange" />
-          </div>
-
-          <p v-if="fieldError('images')" class="error-text mt-2">
-            {{ fieldError("images") }}
-          </p>
-
-          <div v-if="store.form.images.length" class="mt-4">
-            <div class="text-sm font-semibold mb-3">
-              Ảnh mới đã chọn: {{ store.form.images.length }}
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div v-for="(image, index) in imagePreviews" :key="index"
-                class="relative rounded-2xl border border-border overflow-hidden bg-bg">
-                <img :src="image.url" class="w-full h-32 object-cover" />
-
-                <label
-                  class="absolute left-2 bottom-2 bg-black/60 text-white rounded-lg px-2 py-1 text-xs cursor-pointer">
-                  <input v-model.number="store.form.primary_image_index" type="radio" :value="index" class="mr-1" />
-                  Ảnh chính
-                </label>
-              </div>
-            </div>
-          </div>
-
-          <div v-if="store.selectedProduct?.images?.length && !store.form.images.length" class="mt-4">
-            <div class="text-sm font-semibold mb-3">
-              Ảnh hiện tại
-            </div>
-
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <div v-for="image in store.selectedProduct.images" :key="image.id"
-                class="rounded-2xl border border-border overflow-hidden bg-bg relative">
-                <img :src="image.image_url" class="w-full h-32 object-cover" />
-
-                <span v-if="image.is_primary"
-                  class="absolute left-2 bottom-2 bg-primary text-white rounded-lg px-2 py-1 text-xs">
-                  Ảnh chính
-                </span>
-              </div>
-            </div>
-
-            <p class="text-xs text-text-light mt-2">
-              Chọn ảnh mới nếu bạn muốn thay toàn bộ ảnh hiện tại.
-            </p>
-          </div>
-        </div>
-
-        <!-- Section: biến thể -->
-        <div class="section-card">
-          <div class="section-header">
-            <div>
-              <h3 class="section-title">Biến thể và quy cách bán</h3>
-              <p class="section-desc">
-                Giá, SKU và tồn kho nằm trong từng quy cách bán.
-              </p>
-            </div>
-
-            <button type="button" class="btn-outline-sm" @click="store.addVariant">
-              <Icon icon="solar:add-circle-bold" />
-              Thêm biến thể
-            </button>
-          </div>
-
-          <div class="space-y-5">
-            <div v-for="(variant, variantIndex) in store.form.variants" :key="variantIndex"
-              class="rounded-2xl border border-border p-4 bg-bg/40">
-              <div class="flex items-center justify-between gap-3 mb-4">
-                <div class="font-bold">
-                  Biến thể {{ variantIndex + 1 }}
-                </div>
-
-                <button type="button" class="btn-danger-icon" :disabled="store.form.variants.length <= 1"
-                  :class="store.form.variants.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''"
-                  @click="store.removeVariant(variantIndex)">
-                  <Icon icon="solar:trash-bin-trash-bold" />
-                </button>
-              </div>
-
-              <div class="form-group mb-4">
-                <label class="form-label">
-                  Tên biến thể <span class="text-primary">*</span>
-                </label>
-
-                <input v-model.trim="variant.variant_name" class="form-control"
-                  placeholder="Ví dụ: Chai 500ml, Túi 1kg, Gói nhỏ..." />
-
-                <p v-if="fieldError(`variants.${variantIndex}.variant_name`)" class="error-text">
-                  {{ fieldError(`variants.${variantIndex}.variant_name`) }}
-                </p>
-              </div>
-
-              <div class="space-y-4">
-                <div v-for="(pkg, packageIndex) in variant.packages" :key="packageIndex"
-                  class="rounded-2xl border border-border p-4 bg-surface">
-                  <div class="flex items-center justify-between gap-3 mb-4">
-                    <div class="font-semibold text-sm">
-                      Quy cách {{ packageIndex + 1 }}
-                    </div>
-
-                    <div class="flex gap-2">
-                      <button type="button" class="btn-outline-icon" @click="store.addPackage(variantIndex)">
-                        <Icon icon="solar:add-circle-bold" />
-                      </button>
-
-                      <button type="button" class="btn-danger-icon" :disabled="variant.packages.length <= 1"
-                        :class="variant.packages.length <= 1 ? 'opacity-50 cursor-not-allowed' : ''"
-                        @click="store.removePackage(variantIndex, packageIndex)">
-                        <Icon icon="solar:trash-bin-trash-bold" />
-                      </button>
-                    </div>
-                  </div>
-
-                  <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
-                    <div class="form-group">
-                      <label class="form-label">
-                        SKU <span class="text-primary">*</span>
-                      </label>
-
-                      <input v-model.trim="pkg.sku" class="form-control" placeholder="SKU001" />
-
-                      <p v-if="fieldError(`variants.${variantIndex}.packages.${packageIndex}.sku`)" class="error-text">
-                        {{ fieldError(`variants.${variantIndex}.packages.${packageIndex}.sku`) }}
-                      </p>
-                    </div>
-
-                    <div class="form-group">
-                      <label class="form-label">
-                        Kích thước <span class="text-primary">*</span>
-                      </label>
-
-                      <input v-model="pkg.size" type="number" min="0" step="0.01" class="form-control"
-                        placeholder="1" />
-                    </div>
-
-                    <div class="form-group">
-                      <label class="form-label">
-                        Đơn vị <span class="text-primary">*</span>
-                      </label>
-
-                      <select v-model="pkg.unit" class="form-control">
-                        <option value="kg">kg</option>
-                        <option value="g">g</option>
-                        <option value="ml">ml</option>
-                        <option value="l">l</option>
-                        <option value="piece">piece</option>
-                      </select>
-                    </div>
-
-                    <div class="form-group">
-                      <label class="form-label">
-                        Giá <span class="text-primary">*</span>
-                      </label>
-
-                      <input v-model="pkg.price" type="number" min="0" step="1000" class="form-control"
-                        placeholder="120000" />
-                    </div>
-
-                    <div class="form-group">
-                      <label class="form-label">
-                        Tồn kho <span class="text-primary">*</span>
-                      </label>
-
-                      <input v-model="pkg.quantity_available" type="number" min="0" class="form-control"
-                        placeholder="50" />
-                    </div>
-
-                    <div class="form-group">
-                      <label class="form-label">Barcode</label>
-
-                      <input v-model.trim="pkg.barcode" class="form-control" placeholder="Barcode lẻ" />
-                    </div>
-
-                    <div class="form-group md:col-span-2">
-                      <label class="form-label">Box barcode</label>
-
-                      <input v-model.trim="pkg.box_barcode" class="form-control" placeholder="Barcode thùng/hộp" />
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <p v-if="fieldError('variants')" class="error-text mt-2">
-            {{ fieldError("variants") }}
-          </p>
-        </div>
-
-        <!-- Footer -->
-        <div
-          class="sticky bottom-0 bg-surface border-t border-border pt-4 pb-1 flex flex-col sm:flex-row justify-end gap-3">
-          <button type="button" class="btn-outline" @click="store.closeModal">
-            Hủy
-          </button>
-
-          <button type="submit" class="btn-primary disabled:opacity-60 disabled:cursor-not-allowed"
-            :disabled="store.saving || !canSave">
-            <Icon :icon="store.saving ? 'solar:refresh-bold' : 'solar:diskette-bold-duotone'"
-              :class="store.saving ? 'animate-spin' : ''" />
-
-            {{ store.saving ? "Đang lưu..." : store.selectedProduct ? "Cập nhật sản phẩm" : "Lưu sản phẩm" }}
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</template>
-
 <script setup>
 import { Icon } from "@iconify/vue";
-import { computed, ref, watch } from "vue";
-import { useProductStore } from "@/stores/productStore";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import { useProductStore } from "@/stores/admin/productStore";
 import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useProductStore();
 const authStore = useAuthStore();
 
+const emit = defineEmits(["close"]);
+
+const dialog = ref(null);
 const fileInput = ref(null);
 const imagePreviews = ref([]);
+const imageError = ref("");
+const loadingSubcategories = ref(false);
 
-const canSave = computed(() => {
-  if (store.selectedProduct) {
-    return authStore.hasPermission("product.update");
+let categoryRequest = 0;
+let disposed = false;
+let nextKey = 0;
+const objectKeys = new WeakMap();
+
+const canSave = computed(() =>
+  authStore.hasPermission(
+    store.selectedProduct ? "product.update" : "product.create",
+  ),
+);
+
+const locked = computed(() => store.saving || !canSave.value);
+
+const textFields = [
+  { key: "description", label: "Mô tả", placeholder: "Mô tả sản phẩm..." },
+  {
+    key: "usage_instructions",
+    label: "Hướng dẫn sử dụng",
+    placeholder: "Hướng dẫn sử dụng sản phẩm...",
+  },
+  {
+    key: "safety_warning",
+    label: "Cảnh báo an toàn",
+    placeholder: "Cảnh báo an toàn nếu có...",
+  },
+];
+
+const packageFields = [
+  { key: "sku", label: "SKU", type: "text", required: true, maxlength: 255 },
+  {
+    key: "size",
+    label: "Kích thước",
+    type: "number",
+    required: true,
+    min: 0,
+    max: 999999.99,
+    step: "0.01",
+  },
+  {
+    key: "price",
+    label: "Giá bán",
+    type: "number",
+    required: true,
+    min: 0,
+    max: 9999999999.99,
+    step: "0.01",
+  },
+  {
+    key: "reorder_level",
+    label: "Ngưỡng cảnh báo tồn",
+    type: "number",
+    required: true,
+    min: 0,
+    max: 4294967295,
+    step: "1",
+  },
+  { key: "barcode", label: "Barcode", type: "text", maxlength: 255 },
+  { key: "box_barcode", label: "Barcode thùng/hộp", type: "text", maxlength: 255 },
+];
+
+function rowKey(object, type) {
+  if (object.id != null) return `${type}-${object.id}`;
+
+  if (!objectKeys.has(object)) {
+    objectKeys.set(object, `${type}-new-${++nextKey}`);
   }
 
-  return authStore.hasPermission("product.create");
-});
+  return objectKeys.get(object);
+}
 
 function fieldError(key) {
   return store.errors[key] || "";
 }
 
-function triggerFileInput() {
-  fileInput.value?.click();
+function requestClose() {
+  if (store.saving) return;
+
+  // Products.vue xử lý @close bằng store.closeModal().
+  emit("close");
 }
 
-function handleImagesChange(event) {
-  const files = event.target.files || [];
-
-  store.setImages(files);
-
+function releasePreviews() {
   imagePreviews.value.forEach((preview) => {
     URL.revokeObjectURL(preview.url);
   });
 
-  imagePreviews.value = Array.from(files).map((file) => ({
+  imagePreviews.value = [];
+}
+
+function rebuildPreviews(files) {
+  releasePreviews();
+
+  imagePreviews.value = files.map((file) => ({
     name: file.name,
     url: URL.createObjectURL(file),
   }));
-
-  store.form.primary_image_index = 0;
-}
-
-async function handleCategoryChange() {
-  store.form.subcategory_id = "";
-  await store.fetchSubcategories(store.form.category_id);
-}
-
-async function handleSubmit() {
-  await store.saveProduct();
 }
 
 watch(
-  () => store.showProductModal,
-  (isOpen) => {
-    if (!isOpen) {
-      imagePreviews.value.forEach((preview) => {
-        URL.revokeObjectURL(preview.url);
-      });
-
-      imagePreviews.value = [];
-    }
-  },
+  () => [...store.form.images],
+  rebuildPreviews,
+  { immediate: true },
 );
+
+function triggerFileInput() {
+  if (!locked.value) fileInput.value?.click();
+}
+
+function handleImagesChange(event) {
+  const files = Array.from(event.target.files || []);
+  event.target.value = "";
+
+  if (!files.length || locked.value) return;
+
+  imageError.value = "";
+
+  if (files.length > 8) {
+    imageError.value = "Chỉ được chọn tối đa 8 ảnh.";
+    return;
+  }
+
+  const allowedTypes = new Set([
+    "image/png",
+    "image/jpeg",
+    "image/webp",
+  ]);
+
+  for (const file of files) {
+    if (!allowedTypes.has(file.type)) {
+      imageError.value = `"${file.name}" không phải ảnh JPG, PNG hoặc WEBP hợp lệ.`;
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      imageError.value = `"${file.name}" vượt quá 5MB.`;
+      return;
+    }
+  }
+
+  store.setImages(files);
+}
+
+function removeNewImage(index) {
+  if (locked.value) return;
+
+  const files = [...store.form.images];
+  const previousPrimary = Number(store.form.primary_image_index);
+
+  files.splice(index, 1);
+  store.setImages(files);
+
+  if (files.length && previousPrimary !== index) {
+    store.form.primary_image_index =
+      previousPrimary > index ? previousPrimary - 1 : previousPrimary;
+  }
+
+  imageError.value = "";
+}
+
+function clearNewImages() {
+  if (locked.value) return;
+
+  store.setImages([]);
+  imageError.value = "";
+}
+
+async function handleCategoryChange() {
+  const requestId = ++categoryRequest;
+
+  store.form.subcategory_id = "";
+  loadingSubcategories.value = true;
+
+  try {
+    await store.fetchSubcategories(store.form.category_id, "form");
+  } catch {
+    // Store hiển thị lỗi.
+  } finally {
+    if (!disposed && requestId === categoryRequest) {
+      loadingSubcategories.value = false;
+    }
+  }
+}
+
+function removeVariant(index) {
+  if (locked.value || store.form.variants.length <= 1) return;
+
+  const variant = store.form.variants[index];
+
+  if (
+    variant.id &&
+    !window.confirm("Bỏ biến thể này khỏi sản phẩm khi lưu? Backend sẽ kiểm tra các dữ liệu liên quan.")
+  ) return;
+
+  store.removeVariant(index);
+}
+
+function removePackage(variantIndex, packageIndex) {
+  const variant = store.form.variants[variantIndex];
+
+  if (locked.value || variant.packages.length <= 1) return;
+
+  const pkg = variant.packages[packageIndex];
+
+  if (
+    pkg.id &&
+    !window.confirm("Bỏ quy cách này khỏi sản phẩm khi lưu? Quy cách đã phát sinh dữ liệu có thể không được phép xóa.")
+  ) return;
+
+  store.removePackage(variantIndex, packageIndex);
+}
+
+async function handleSubmit() {
+  if (locked.value || loadingSubcategories.value) return;
+
+  imageError.value = "";
+
+  try {
+    await store.saveProduct();
+  } catch {
+    // Giữ nguyên form; lỗi chi tiết đã nằm trong store.errors.
+  }
+}
+
+onMounted(() => {
+  dialog.value?.showModal();
+});
+
+onBeforeUnmount(() => {
+  disposed = true;
+  categoryRequest++;
+  releasePreviews();
+  dialog.value?.close();
+});
 </script>
 
-<style scoped>
-@reference "../../style.css";
+<template>
+  <Teleport to="body">
+    <dialog ref="dialog" aria-labelledby="product-modal-title"
+      class="fixed inset-0 m-auto max-h-[92dvh] w-[calc(100%-2rem)] max-w-5xl overflow-y-auto rounded-2xl border-0 bg-surface p-0 text-text shadow-2xl backdrop:bg-black/50"
+      @cancel.prevent="requestClose">
+      <div
+        class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6">
+        <div>
+          <h2 id="product-modal-title" class="text-xl font-bold">
+            {{ store.selectedProduct ? "Cập nhật sản phẩm" : "Thêm sản phẩm mới" }}
+          </h2>
+          <p class="mt-1 text-sm text-text-light">
+            Thông tin sản phẩm, hình ảnh, biến thể và quy cách bán.
+          </p>
+        </div>
 
-.section-card {
-  @apply rounded-2xl border border-border p-5 bg-surface shadow-sm;
-}
+        <button type="button" class="btn-outline-icon" aria-label="Đóng" :disabled="store.saving" @click="requestClose">
+          <Icon icon="solar:close-circle-bold" />
+        </button>
+      </div>
 
-.section-header {
-  @apply flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5;
-}
+      <form class="space-y-6 p-5 sm:p-6" @submit.prevent="handleSubmit">
+        <div v-if="store.errorMsg" role="alert"
+          class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+          <p class="font-semibold">{{ store.errorMsg }}</p>
 
-.section-title {
-  @apply text-lg font-bold text-text;
-}
+          <ul v-if="Object.keys(store.errors).length" class="mt-2 list-disc space-y-1 pl-5">
+            <li v-for="(error, key) in store.errors" :key="key">
+              {{ error }}
+              <span class="text-xs">({{ key }})</span>
+            </li>
+          </ul>
+        </div>
 
-.section-desc {
-  @apply text-sm text-text-light;
-}
+        <fieldset :disabled="locked" class="min-w-0 space-y-6">
+          <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 class="text-lg font-bold">Thông tin chung</h3>
+                <p class="text-sm text-text-light">Thông tin chính của sản phẩm.</p>
+              </div>
 
-.error-text {
-  @apply text-danger text-sm mt-1;
-}
-</style>
+              <label class="flex cursor-pointer items-center gap-2 text-sm">
+                <input v-model="store.form.is_show" type="checkbox" class="size-4 accent-[#07532b]" />
+                Hiển thị sản phẩm
+              </label>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-3">
+              <label class="form-group md:col-span-2">
+                <span class="form-label">Tên sản phẩm *</span>
+                <input v-model.trim="store.form.product_name" required maxlength="255" class="form-control"
+                  placeholder="Ví dụ: Phân bón hữu cơ cao cấp" />
+              </label>
+
+              <label class="form-group">
+                <span class="form-label">Thương hiệu</span>
+                <input v-model.trim="store.form.brand" maxlength="255" class="form-control"
+                  placeholder="Tên thương hiệu" />
+              </label>
+
+              <label class="form-group">
+                <span class="form-label">Danh mục *</span>
+                <select v-model="store.form.category_id" required class="form-control" @change="handleCategoryChange">
+                  <option value="">Chọn danh mục</option>
+                  <option v-for="item in store.categories" :key="item.id" :value="item.id">
+                    {{ item.name || item.category_name }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="form-group">
+                <span class="form-label">Danh mục con *</span>
+                <select v-model="store.form.subcategory_id" required class="form-control"
+                  :disabled="!store.form.category_id || loadingSubcategories">
+                  <option value="">
+                    {{ loadingSubcategories ? "Đang tải..." : "Chọn danh mục con" }}
+                  </option>
+                  <option v-for="item in store.subcategories" :key="item.id" :value="item.id">
+                    {{ item.name || item.subcategory_name }}
+                  </option>
+                </select>
+              </label>
+
+              <label class="form-group">
+                <span class="form-label">Xuất xứ *</span>
+                <select v-model="store.form.origin_id" required class="form-control">
+                  <option value="">Chọn xuất xứ</option>
+                  <option v-for="item in store.origins" :key="item.id" :value="item.id">
+                    {{ item.origin_name || item.name }}
+                  </option>
+                </select>
+              </label>
+            </div>
+
+            <div class="mt-4 grid gap-4">
+              <label v-for="field in textFields" :key="field.key" class="form-group">
+                <span class="form-label">{{ field.label }}</span>
+                <textarea v-model="store.form[field.key]" class="form-control" rows="3"
+                  :placeholder="field.placeholder"></textarea>
+              </label>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <h3 class="text-lg font-bold">Hình ảnh sản phẩm</h3>
+            <p class="mt-1 text-sm text-text-light">
+              Tối đa 8 ảnh, mỗi ảnh 5MB. Ảnh đầu tiên mặc định là ảnh chính.
+            </p>
+
+            <button type="button"
+              class="mt-4 w-full rounded-2xl border-2 border-dashed border-border p-6 text-center transition hover:border-primary"
+              @click="triggerFileInput">
+              <Icon icon="solar:cloud-upload-bold" class="mx-auto mb-2 text-4xl text-primary" />
+              <span class="block text-sm font-semibold">Chọn ảnh sản phẩm</span>
+              <span class="mt-1 block text-xs text-text-light">PNG, JPG, JPEG, WEBP</span>
+            </button>
+
+            <input ref="fileInput" type="file" accept="image/png,image/jpeg,image/webp" multiple class="hidden"
+              @change="handleImagesChange" />
+
+            <p v-if="imageError" role="alert" class="mt-2 text-sm text-danger">
+              {{ imageError }}
+            </p>
+
+            <div v-if="imagePreviews.length" class="mt-4">
+              <div class="mb-3 flex items-center justify-between gap-3">
+                <strong class="text-sm">Ảnh mới: {{ imagePreviews.length }}</strong>
+                <button type="button" class="text-sm text-danger underline" @click="clearNewImages">
+                  Bỏ ảnh mới
+                </button>
+              </div>
+
+              <p v-if="store.selectedProduct" class="mb-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                Khi lưu, các ảnh này sẽ thay toàn bộ ảnh hiện tại.
+              </p>
+
+              <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div v-for="(image, index) in imagePreviews" :key="image.url"
+                  class="overflow-hidden rounded-xl border border-border bg-bg">
+                  <div class="relative">
+                    <img :src="image.url" :alt="image.name" class="h-32 w-full object-contain" />
+                    <button type="button"
+                      class="absolute right-1 top-1 grid size-7 place-items-center rounded-full bg-white text-red-600 shadow"
+                      :aria-label="`Bỏ ảnh ${index + 1}`" @click="removeNewImage(index)">
+                      <Icon icon="mdi:close" />
+                    </button>
+                  </div>
+
+                  <label class="flex items-center gap-2 p-3 text-xs">
+                    <input v-model.number="store.form.primary_image_index" type="radio" name="product-primary-image"
+                      :value="index" />
+                    Ảnh chính
+                  </label>
+
+                  <p v-if="fieldError(`images.${index}`)" class="px-3 pb-3 text-xs text-danger">
+                    {{ fieldError(`images.${index}`) }}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div v-else-if="store.selectedProduct?.images?.length" class="mt-4">
+              <strong class="mb-3 block text-sm">Ảnh hiện tại</strong>
+
+              <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                <div v-for="image in store.selectedProduct.images" :key="image.id"
+                  class="relative overflow-hidden rounded-xl border border-border bg-bg">
+                  <img :src="image.image_url" :alt="store.form.product_name" class="h-32 w-full object-contain" />
+                  <span v-if="image.is_primary === true || image.is_primary === 1 || image.is_primary === '1'"
+                    class="absolute bottom-2 left-2 rounded-lg bg-primary px-2 py-1 text-xs text-white">
+                    Ảnh chính
+                  </span>
+                </div>
+              </div>
+
+              <p class="mt-2 text-xs text-text-light">
+                Không chọn ảnh mới thì giữ nguyên ảnh hiện tại.
+              </p>
+            </div>
+          </section>
+
+          <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+            <div class="mb-5 flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+              <div>
+                <h3 class="text-lg font-bold">Biến thể và quy cách bán</h3>
+                <p class="text-sm text-text-light">
+                  Tồn kho được cập nhật qua nhập/xuất kho.
+                </p>
+              </div>
+
+              <button type="button" class="btn-outline-sm" @click="store.addVariant">
+                <Icon icon="solar:add-circle-bold" />
+                Thêm biến thể
+              </button>
+            </div>
+
+            <div class="space-y-5">
+              <div v-for="(variant, variantIndex) in store.form.variants" :key="rowKey(variant, 'variant')"
+                class="rounded-2xl border border-border bg-bg/40 p-4">
+                <div class="mb-4 flex items-center justify-between gap-3">
+                  <strong>Biến thể {{ variantIndex + 1 }}</strong>
+                  <button type="button" class="btn-danger-icon disabled:opacity-40" aria-label="Bỏ biến thể"
+                    :disabled="store.form.variants.length <= 1" @click="removeVariant(variantIndex)">
+                    <Icon icon="solar:trash-bin-trash-bold" />
+                  </button>
+                </div>
+
+                <label class="form-group mb-4">
+                  <span class="form-label">Tên biến thể *</span>
+                  <input v-model.trim="variant.variant_name" required maxlength="255" class="form-control"
+                    placeholder="Tên biến thể" />
+                </label>
+
+                <div class="space-y-4">
+                  <div v-for="(pkg, packageIndex) in variant.packages" :key="rowKey(pkg, 'package')"
+                    class="rounded-2xl border border-border bg-surface p-4">
+                    <div class="mb-4 flex items-center justify-between gap-3">
+                      <strong class="text-sm">Quy cách {{ packageIndex + 1 }}</strong>
+                      <button type="button" class="btn-danger-icon disabled:opacity-40" aria-label="Bỏ quy cách"
+                        :disabled="variant.packages.length <= 1" @click="removePackage(variantIndex, packageIndex)">
+                        <Icon icon="solar:trash-bin-trash-bold" />
+                      </button>
+                    </div>
+
+                    <div class="grid gap-4 md:grid-cols-4">
+                      <label v-for="field in packageFields" :key="field.key" class="form-group">
+                        <span class="form-label">
+                          {{ field.label }}{{ field.required ? " *" : "" }}
+                        </span>
+
+                        <input v-model="pkg[field.key]" :type="field.type" :required="field.required"
+                          :maxlength="field.maxlength" :min="field.min" :max="field.max" :step="field.step"
+                          class="form-control" />
+
+                        <span v-if="fieldError(`variants.${variantIndex}.packages.${packageIndex}.${field.key}`)"
+                          class="mt-1 block text-sm text-danger">
+                          {{ fieldError(`variants.${variantIndex}.packages.${packageIndex}.${field.key}`) }}
+                        </span>
+                      </label>
+
+                      <label class="form-group">
+                        <span class="form-label">Đơn vị *</span>
+                        <select v-model="pkg.unit" required class="form-control">
+                          <option value="kg">kg</option>
+                          <option value="g">g</option>
+                          <option value="ml">ml</option>
+                          <option value="l">Lít</option>
+                          <option value="piece">Cái</option>
+                        </select>
+                      </label>
+
+                      <label class="form-group">
+                        <span class="form-label">Tồn vật lý</span>
+                        <input :value="pkg.quantity_available ?? 0" readonly
+                          class="form-control cursor-default bg-bg" />
+                        <span class="mt-1 block text-xs text-text-light">
+                          {{ pkg.id ? "Cập nhật qua nghiệp vụ kho." : "Quy cách mới có tồn ban đầu bằng 0." }}
+                        </span>
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <button type="button" class="btn-outline-sm mt-4" @click="store.addPackage(variantIndex)">
+                  <Icon icon="solar:add-circle-bold" />
+                  Thêm quy cách
+                </button>
+              </div>
+            </div>
+          </section>
+        </fieldset>
+
+        <div
+          class="sticky bottom-0 flex flex-col justify-end gap-3 border-t border-border bg-surface pb-1 pt-4 sm:flex-row">
+          <button type="button" class="btn-outline" :disabled="store.saving" @click="requestClose">
+            Hủy
+          </button>
+
+          <button type="submit" class="btn-primary disabled:cursor-not-allowed disabled:opacity-60"
+            :disabled="locked || loadingSubcategories">
+            <Icon :icon="store.saving ? 'solar:refresh-bold' : 'solar:diskette-bold-duotone'"
+              :class="{ 'animate-spin': store.saving }" />
+            {{
+              store.saving
+                ? "Đang lưu..."
+                : store.selectedProduct
+                  ? "Cập nhật sản phẩm"
+                  : "Lưu sản phẩm"
+            }}
+          </button>
+        </div>
+      </form>
+    </dialog>
+  </Teleport>
+</template>

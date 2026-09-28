@@ -1,7 +1,7 @@
 import apiClient from "@/api/client";
 
 class CheckoutService {
-  async csrf() {
+  csrf() {
     return apiClient.get("/sanctum/csrf-cookie");
   }
 
@@ -12,11 +12,7 @@ class CheckoutService {
   async preview(data) {
     await this.csrf();
 
-    return apiClient.post("/api/v1/checkout/preview", {
-      cart_item_ids: data.cart_item_ids || [],
-      delivery_id: data.delivery_id,
-      discount_code: data.discount_code || null,
-    });
+    return apiClient.post("/api/v1/checkout/preview", data);
   }
 
   async checkout(data) {

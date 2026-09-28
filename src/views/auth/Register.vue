@@ -1,390 +1,413 @@
-<template>
-    <div class="fixed inset-0 bg-bg flex items-center justify-center z-50 px-4 overflow-y-auto py-8">
-        <div
-            class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-surface rounded-3xl shadow-xl border border-border overflow-hidden">
-            <!-- Left -->
-            <div class="hidden lg:flex flex-col justify-between bg-primary p-10 text-white">
-                <div>
-                    <div class="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-6">
-                        <Icon icon="solar:user-plus-bold-duotone" class="text-3xl" />
-                    </div>
-
-                    <h1 class="text-3xl font-bold mb-3">
-                        Tạo tài khoản EVDesign
-                    </h1>
-
-                    <p class="text-white/80 leading-relaxed">
-                        Đăng ký tài khoản bằng email. Hệ thống sẽ gửi mã OTP về Gmail trước khi tạo tài khoản.
-                    </p>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                            <Icon icon="solar:letter-unread-bold-duotone" class="text-2xl" />
-                        </div>
-                        <div>
-                            <h3 class="font-semibold">Xác thực Gmail</h3>
-                            <p class="text-sm text-white/70">Email phải được xác thực trước khi đăng ký.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                            <Icon icon="solar:lock-keyhole-bold-duotone" class="text-2xl" />
-                        </div>
-                        <div>
-                            <h3 class="font-semibold">Bảo mật tài khoản</h3>
-                            <p class="text-sm text-white/70">Tài khoản được xử lý bởi Laravel Breeze API.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right -->
-            <div class="p-6 sm:p-10">
-                <div class="mb-8">
-                    <div
-                        class="lg:hidden w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mb-5 text-white">
-                        <Icon icon="solar:user-plus-bold-duotone" class="text-2xl" />
-                    </div>
-
-                    <h2 class="text-2xl font-bold text-text">
-                        Đăng ký tài khoản
-                    </h2>
-
-                    <p class="text-sm text-text-light mt-1">
-                        {{ stepDescription }}
-                    </p>
-                </div>
-
-                <!-- Step indicator -->
-                <div class="grid grid-cols-3 gap-3 mb-7">
-                    <div class="rounded-2xl px-3 py-2 text-center text-xs font-semibold border"
-                        :class="step >= 1 ? 'bg-primary/10 text-primary border-primary/20' : 'border-border text-text-light'">
-                        1. Email
-                    </div>
-
-                    <div class="rounded-2xl px-3 py-2 text-center text-xs font-semibold border"
-                        :class="step >= 2 ? 'bg-primary/10 text-primary border-primary/20' : 'border-border text-text-light'">
-                        2. OTP
-                    </div>
-
-                    <div class="rounded-2xl px-3 py-2 text-center text-xs font-semibold border"
-                        :class="step >= 3 ? 'bg-primary/10 text-primary border-primary/20' : 'border-border text-text-light'">
-                        3. Tài khoản
-                    </div>
-                </div>
-
-                <div v-if="successMsg"
-                    class="mb-5 flex items-start gap-3 rounded-2xl bg-green-50 border border-green-100 px-4 py-3 text-green-600 text-sm">
-                    <Icon icon="solar:check-circle-bold-duotone" class="text-xl shrink-0 mt-0.5" />
-                    <span>{{ successMsg }}</span>
-                </div>
-
-                <div v-if="errorMsg"
-                    class="mb-5 flex items-start gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-red-600 text-sm">
-                    <Icon icon="solar:danger-circle-bold-duotone" class="text-xl shrink-0 mt-0.5" />
-                    <span>{{ errorMsg }}</span>
-                </div>
-
-                <!-- STEP 1: Nhập email -->
-                <form v-if="step === 1" @submit.prevent="handleSendCode" class="space-y-5">
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:letter-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model.trim="form.email" type="email" class="form-control !pl-12"
-                                placeholder="Nhập email" autocomplete="email" />
-                        </div>
-
-                        <p v-if="errors.email" class="text-danger text-sm mt-1">
-                            {{ errors.email }}
-                        </p>
-                    </div>
-
-                    <button type="submit"
-                        class="btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="authStore.loading">
-                        <Icon :icon="authStore.loading ? 'solar:refresh-bold' : 'solar:letter-bold-duotone'"
-                            class="text-xl" :class="authStore.loading ? 'animate-spin' : ''" />
-
-                        {{ authStore.loading ? "Đang gửi mã..." : "Gửi mã xác thực" }}
-                    </button>
-                </form>
-
-                <!-- STEP 2: Nhập OTP -->
-                <form v-if="step === 2" @submit.prevent="handleVerifyCode" class="space-y-5">
-                    <div class="rounded-2xl bg-primary/5 border border-primary/10 px-4 py-3 text-sm text-text-sec">
-                        Mã xác thực đã được gửi đến:
-                        <span class="font-semibold text-primary">{{ form.email }}</span>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Mã OTP</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:shield-check-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model.trim="form.code" type="text" maxlength="6" class="form-control !pl-12"
-                                placeholder="Nhập mã 6 số" autocomplete="one-time-code" />
-                        </div>
-
-                        <p v-if="errors.code" class="text-danger text-sm mt-1">
-                            {{ errors.code }}
-                        </p>
-                    </div>
-
-                    <button type="submit"
-                        class="btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="authStore.loading">
-                        <Icon :icon="authStore.loading ? 'solar:refresh-bold' : 'solar:shield-check-bold-duotone'"
-                            class="text-xl" :class="authStore.loading ? 'animate-spin' : ''" />
-
-                        {{ authStore.loading ? "Đang xác thực..." : "Xác thực mã" }}
-                    </button>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <button type="button"
-                            class="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-sec hover:bg-primary/10 hover:text-primary transition"
-                            @click="backToEmail">
-                            <Icon icon="solar:arrow-left-bold-duotone" class="text-xl" />
-                            Đổi email
-                        </button>
-
-                        <button type="button"
-                            class="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-sec hover:bg-primary/10 hover:text-primary transition disabled:opacity-60 disabled:cursor-not-allowed"
-                            :disabled="authStore.loading" @click="handleSendCode">
-                            <Icon icon="solar:refresh-bold-duotone" class="text-xl" />
-                            Gửi lại mã
-                        </button>
-                    </div>
-                </form>
-
-                <!-- STEP 3: Nhập thông tin tài khoản -->
-                <form v-if="step === 3" @submit.prevent="handleRegister" class="space-y-5">
-                    <div class="rounded-2xl bg-green-50 border border-green-100 px-4 py-3 text-sm text-green-600">
-                        Email <span class="font-semibold">{{ form.email }}</span> đã được xác thực.
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Họ tên</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:user-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model.trim="form.name" type="text" class="form-control !pl-12"
-                                placeholder="Nhập họ tên" autocomplete="name" />
-                        </div>
-
-                        <p v-if="errors.name" class="text-danger text-sm mt-1">
-                            {{ errors.name }}
-                        </p>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Mật khẩu</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:lock-password-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model="form.password" :type="showPassword ? 'text' : 'password'"
-                                class="form-control !pl-12 !pr-12" placeholder="Nhập mật khẩu"
-                                autocomplete="new-password" />
-
-                            <button type="button"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-text-light hover:text-primary transition"
-                                @click="showPassword = !showPassword">
-                                <Icon :icon="showPassword ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'"
-                                    class="text-xl" />
-                            </button>
-                        </div>
-
-                        <p v-if="errors.password" class="text-danger text-sm mt-1">
-                            {{ errors.password }}
-                        </p>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Nhập lại mật khẩu</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:lock-keyhole-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model="form.password_confirmation"
-                                :type="showPasswordConfirm ? 'text' : 'password'" class="form-control !pl-12 !pr-12"
-                                placeholder="Nhập lại mật khẩu" autocomplete="new-password" />
-
-                            <button type="button"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-text-light hover:text-primary transition"
-                                @click="showPasswordConfirm = !showPasswordConfirm">
-                                <Icon
-                                    :icon="showPasswordConfirm ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'"
-                                    class="text-xl" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <button type="submit"
-                        class="btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="authStore.loading">
-                        <Icon :icon="authStore.loading ? 'solar:refresh-bold' : 'solar:user-plus-bold-duotone'"
-                            class="text-xl" :class="authStore.loading ? 'animate-spin' : ''" />
-
-                        {{ authStore.loading ? "Đang tạo tài khoản..." : "Đăng ký" }}
-                    </button>
-
-                    <button type="button"
-                        class="w-full flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-sec hover:bg-primary/10 hover:text-primary transition"
-                        @click="backToOtp">
-                        <Icon icon="solar:arrow-left-bold-duotone" class="text-xl" />
-                        Quay lại nhập OTP
-                    </button>
-                </form>
-
-                <p class="text-center text-sm text-text-light mt-7">
-                    Đã có tài khoản?
-                    <RouterLink to="/login" class="font-semibold text-primary hover:underline">
-                        Đăng nhập
-                    </RouterLink>
-                </p>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script setup>
-import { computed, reactive, ref } from "vue";
-import { useRouter, RouterLink } from "vue-router";
-import { Icon } from "@iconify/vue";
-import { useAuthStore } from "@/stores/shared/authStore";
+import {
+    computed,
+    onBeforeUnmount,
+    reactive,
+    ref,
+} from "vue";
 
-const router = useRouter();
+import {
+    RouterLink,
+    useRouter,
+} from "vue-router";
+
+import { useAuthStore } from "@/stores/shared/authStore";
+import AuthLayout from "@/components/auth/AuthLayout.vue";
+import AuthField from "@/components/auth/AuthField.vue";
+import {
+    authError,
+    defaultDestination,
+} from "./authUi";
+
 const authStore = useAuthStore();
+const router = useRouter();
 
 const step = ref(1);
-const showPassword = ref(false);
-const showPasswordConfirm = ref(false);
+const busy = ref(false);
 const errorMsg = ref("");
 const successMsg = ref("");
+const errors = ref({});
 
-const errors = reactive({
-    name: "",
-    email: "",
-    code: "",
-    password: "",
-});
+const verifiedEmail = ref("");
+const sentEmail = ref("");
+const seconds = ref(0);
+
+let timer;
 
 const form = reactive({
-    name: "",
     email: "",
     code: "",
+    name: "",
     password: "",
     password_confirmation: "",
 });
 
-const stepDescription = computed(() => {
-    if (step.value === 1) {
-        return "Nhập email để nhận mã xác thực.";
-    }
+const description = computed(() => {
+    const descriptions = [
+        "Bắt đầu bằng email của bạn để cùng NFarmHouse vun trồng mỗi ngày.",
+        "Nhập mã gồm 6 chữ số trong email để tiếp tục.",
+        "Chỉ còn một bước nữa. Hoàn tất thông tin để tạo tài khoản.",
+    ];
 
-    if (step.value === 2) {
-        return "Nhập mã OTP đã được gửi về Gmail.";
-    }
-
-    return "Hoàn tất thông tin tài khoản để đăng ký.";
+    return descriptions[step.value - 1];
 });
 
 function clearMessages() {
     errorMsg.value = "";
     successMsg.value = "";
-    errors.name = "";
-    errors.email = "";
-    errors.code = "";
-    errors.password = "";
+    errors.value = {};
 }
 
-function setBackendErrors(err) {
-    const responseErrors = err.response?.data?.errors;
-
-    errors.name = responseErrors?.name?.[0] || "";
-    errors.email = responseErrors?.email?.[0] || "";
-    errors.code = responseErrors?.code?.[0] || "";
-    errors.password = responseErrors?.password?.[0] || "";
-
-    errorMsg.value =
-        err.response?.data?.message ||
-        errors.email ||
-        errors.code ||
-        errors.password ||
-        errors.name ||
-        "Có lỗi xảy ra. Vui lòng thử lại.";
+function showError(error, fallback) {
+    errors.value = error.response?.data?.errors || {};
+    errorMsg.value = authError(error, fallback);
 }
+
+function startCooldown(value = 60) {
+    clearInterval(timer);
+
+    const until = Date.now() + value * 1000;
+    seconds.value = value;
+
+    timer = setInterval(() => {
+        seconds.value = Math.max(
+            0,
+            Math.ceil((until - Date.now()) / 1000),
+        );
+
+        if (!seconds.value) {
+            clearInterval(timer);
+        }
+    }, 1000);
+}
+
+onBeforeUnmount(() => {
+    clearInterval(timer);
+});
 
 async function handleSendCode() {
+    if (busy.value || seconds.value) return;
+
     clearMessages();
 
+    const email = form.email.trim().toLowerCase();
+
+    busy.value = true;
+    verifiedEmail.value = "";
+
     try {
-        const response = await authStore.sendRegisterCode(form.email);
+        const response = await authStore.sendRegisterCode(email);
+
+        form.email = email;
+        sentEmail.value = email;
+        form.code = "";
+
+        step.value = 2;
 
         successMsg.value =
             response.data?.message ||
-            "Mã xác thực đã được gửi đến email.";
+            "Mã xác thực đã được gửi. Vui lòng kiểm tra email.";
 
-        step.value = 2;
-    } catch (err) {
-        setBackendErrors(err);
+        startCooldown();
+    } catch (error) {
+        showError(
+            error,
+            "Chưa gửi được mã. Vui lòng thử lại.",
+        );
+
+        if (error.response?.status === 429) {
+            const retryAfter = Number(
+                error.response?.headers?.["retry-after"],
+            );
+
+            startCooldown(
+                Number.isFinite(retryAfter) && retryAfter > 0
+                    ? Math.ceil(retryAfter)
+                    : 60,
+            );
+        }
+    } finally {
+        busy.value = false;
     }
 }
 
 async function handleVerifyCode() {
+    if (busy.value) return;
+
     clearMessages();
 
+    if (!/^\d{6}$/.test(form.code)) {
+        errors.value = {
+            code: ["Vui lòng nhập đúng 6 chữ số."],
+        };
+
+        return;
+    }
+
+    busy.value = true;
+
     try {
-        const response = await authStore.verifyRegisterCode(form.email, form.code);
+        await authStore.verifyRegisterCode(
+            sentEmail.value,
+            form.code,
+        );
 
-        successMsg.value =
-            response.data?.message ||
-            "Xác thực email thành công.";
-
+        verifiedEmail.value = sentEmail.value;
+        form.code = "";
         step.value = 3;
-    } catch (err) {
-        setBackendErrors(err);
+    } catch (error) {
+        showError(
+            error,
+            "Không thể xác thực mã. Vui lòng thử lại.",
+        );
+    } finally {
+        busy.value = false;
     }
 }
 
 async function handleRegister() {
+    if (busy.value) return;
+
     clearMessages();
 
+    if (
+        !verifiedEmail.value ||
+        verifiedEmail.value !== form.email.trim().toLowerCase()
+    ) {
+        step.value = 1;
+
+        errorMsg.value =
+            "Vui lòng xác thực lại email trước khi đăng ký.";
+
+        return;
+    }
+
+    if (!form.name.trim()) {
+        errors.value = {
+            name: ["Vui lòng nhập họ tên."],
+        };
+
+        return;
+    }
+
+    if (form.password !== form.password_confirmation) {
+        errors.value = {
+            password_confirmation: [
+                "Mật khẩu nhập lại chưa khớp.",
+            ],
+        };
+
+        return;
+    }
+
+    busy.value = true;
+
     try {
-        await authStore.register(form);
+        await authStore.register({
+            ...form,
+            email: verifiedEmail.value,
+            name: form.name.trim(),
+        });
 
-        if (authStore.isAdmin) {
-            router.push({ name: "admin-dashboard" });
-            return;
+        form.password = "";
+        form.password_confirmation = "";
+
+        await router.replace(
+            defaultDestination(authStore, router),
+        );
+    } catch (error) {
+        showError(
+            error,
+            "Chưa tạo được tài khoản. Vui lòng thử lại.",
+        );
+
+        if (errors.value.email) {
+            verifiedEmail.value = "";
+            form.code = "";
+            step.value = 1;
         }
-
-        router.push({ name: "profile" });
-    } catch (err) {
-        setBackendErrors(err);
+    } finally {
+        busy.value = false;
     }
 }
 
 function backToEmail() {
+    if (busy.value) return;
+
     clearMessages();
-    step.value = 1;
+    verifiedEmail.value = "";
     form.code = "";
+    step.value = 1;
 }
 
 function backToOtp() {
+    if (busy.value) return;
+
     clearMessages();
+    verifiedEmail.value = "";
+    form.code = "";
     step.value = 2;
 }
 </script>
+
+<template>
+    <AuthLayout title="Đăng ký">
+        <p class="nf-kicker">
+            CHÀO MỪNG ĐẾN NFARMHOUSE
+        </p>
+
+        <h1>Tạo tài khoản</h1>
+
+        <p class="nf-intro">
+            {{ description }}
+        </p>
+
+        <ol class="nf-steps" aria-label="Các bước đăng ký">
+            <li v-for="(label, index) in [
+                'Email',
+                'Xác thực',
+                'Tài khoản',
+            ]" :key="label" :class="{ 'is-active': step >= index + 1 }" :aria-current="step === index + 1
+                ? 'step'
+                : undefined
+                ">
+                0{{ index + 1 }} · {{ label }}
+            </li>
+        </ol>
+
+        <p v-if="successMsg" class="nf-alert nf-alert-success" role="status">
+            {{ successMsg }}
+        </p>
+
+        <p v-if="errorMsg" class="nf-alert" role="alert">
+            {{ errorMsg }}
+        </p>
+
+        <!-- Bước 1 -->
+        <form v-if="step === 1" class="nf-form" :aria-busy="busy" @submit.prevent="handleSendCode">
+            <AuthField id="register-email" v-model="form.email" label="Email của bạn" type="email"
+                placeholder="Nhập email để nhận mã xác thực" autocomplete="email" :disabled="busy"
+                :error="errors.email?.[0]" />
+
+            <button type="submit" class="nf-button nf-primary" :disabled="busy || seconds > 0">
+                <span>
+                    {{
+                        busy
+                            ? "Đang gửi mã..."
+                            : seconds
+                                ? `Gửi lại sau ${seconds}s`
+                                : "Gửi mã xác thực"
+                    }}
+                </span>
+
+                <span class="nf-button-arrow">
+                    ›
+                </span>
+            </button>
+
+            <p class="nf-note">
+                Email được dùng để xác thực tài khoản và nhận thông tin đơn hàng.
+            </p>
+        </form>
+
+        <!-- Bước 2 -->
+        <template v-else-if="step === 2">
+            <p class="nf-email-note">
+                Mã xác thực đã được gửi đến
+
+                <strong>
+                    {{ sentEmail }}
+                </strong>
+            </p>
+
+            <form class="nf-form" :aria-busy="busy" @submit.prevent="handleVerifyCode">
+                <AuthField id="register-otp" v-model="form.code" label="Mã xác thực" placeholder="Nhập 6 chữ số"
+                    autocomplete="one-time-code" inputmode="numeric" pattern="[0-9]{6}" :maxlength="6" :disabled="busy"
+                    :error="errors.code?.[0]" />
+
+                <button type="submit" class="nf-button nf-primary" :disabled="busy">
+                    <span>
+                        {{
+                            busy
+                                ? "Đang xử lý..."
+                                : "Xác thực email"
+                        }}
+                    </span>
+
+                    <span class="nf-button-arrow">
+                        ›
+                    </span>
+                </button>
+
+                <div class="nf-row">
+                    <button type="button" class="nf-text-button" :disabled="busy" @click="backToEmail">
+                        ← Đổi email
+                    </button>
+
+                    <button type="button" class="nf-text-button" :disabled="busy || seconds > 0"
+                        @click="handleSendCode">
+                        {{
+                            seconds
+                                ? `Gửi lại sau ${seconds}s`
+                                : "Gửi lại mã"
+                        }}
+                    </button>
+                </div>
+            </form>
+
+            <p class="nf-note">
+                Chưa thấy email? Hãy kiểm tra thêm thư mục thư rác.
+            </p>
+        </template>
+
+        <!-- Bước 3 -->
+        <template v-else>
+            <p class="nf-email-note">
+                ✓ Email đã được xác thực
+
+                <strong>
+                    {{ verifiedEmail }}
+                </strong>
+            </p>
+
+            <form class="nf-form" :aria-busy="busy" @submit.prevent="handleRegister">
+                <AuthField id="register-name" v-model="form.name" label="Họ và tên" placeholder="Nhập họ tên của bạn"
+                    autocomplete="name" :maxlength="255" :disabled="busy" :error="errors.name?.[0]" />
+
+                <AuthField id="register-password" v-model="form.password" label="Mật khẩu" type="password"
+                    placeholder="Tạo mật khẩu" autocomplete="new-password" :disabled="busy"
+                    :error="errors.password?.[0]" />
+
+                <AuthField id="register-confirm" v-model="form.password_confirmation" label="Nhập lại mật khẩu"
+                    type="password" placeholder="Nhập lại mật khẩu" autocomplete="new-password" :disabled="busy"
+                    :error="errors.password_confirmation?.[0]" />
+
+                <button type="submit" class="nf-button nf-primary" :disabled="busy">
+                    <span>
+                        {{
+                            busy
+                                ? "Đang tạo tài khoản..."
+                                : "Tạo tài khoản"
+                        }}
+                    </span>
+
+                    <span class="nf-button-arrow">
+                        ›
+                    </span>
+                </button>
+
+                <button type="button" class="nf-text-button" :disabled="busy" @click="backToOtp">
+                    ← Xác thực lại email
+                </button>
+            </form>
+        </template>
+
+        <p class="nf-switch">
+            Đã có tài khoản?
+
+            <RouterLink to="/login" class="nf-link">
+                Đăng nhập
+            </RouterLink>
+        </p>
+    </AuthLayout>
+</template>

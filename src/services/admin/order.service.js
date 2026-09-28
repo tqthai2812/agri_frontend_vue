@@ -1,7 +1,7 @@
 import apiClient from "@/api/client";
 
 class OrderService {
-  async csrf() {
+  csrf() {
     return apiClient.get("/sanctum/csrf-cookie");
   }
 
@@ -21,6 +21,12 @@ class OrderService {
     await this.csrf();
 
     return apiClient.patch(`/api/v1/orders/${id}/status`, data);
+  }
+
+  async confirmCodPayment(id, data) {
+    await this.csrf();
+
+    return apiClient.post(`/api/v1/orders/${id}/confirm-cod-payment`, data);
   }
 }
 

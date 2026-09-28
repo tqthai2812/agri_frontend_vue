@@ -16,6 +16,7 @@ const Settings = () => import("@/views/Settings.vue");
 const Roles = () => import("@/views/Roles.vue");
 const DeliveryMethods = () => import("@/views/DeliveryMethods.vue");
 const Discounts = () => import("@/views/Discounts.vue");
+const Suppliers = () => import("@/views/Suppliers.vue");
 
 // ===== Admin routes =====
 
@@ -61,6 +62,16 @@ const adminRoutes = [
         meta: {
           title: "Quản lý danh mục",
           requiredPermission: "category.view",
+        },
+      },
+
+      {
+        path: "suppliers",
+        name: "admin-suppliers",
+        component: Suppliers,
+        meta: {
+          title: "Nhà cung cấp",
+          requiredPermission: "inventory.view",
         },
       },
 

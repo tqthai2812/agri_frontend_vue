@@ -1,14 +1,7 @@
 <script setup>
-import {
-    computed,
-    onBeforeUnmount,
-    onMounted,
-    ref,
-    watch,
-} from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
-
 import AddressBookModal from "@/components/client/checkout/AddressBookModal.vue";
 import CheckoutProducts from "@/components/client/checkout/CheckoutProducts.vue";
 import CheckoutSummary from "@/components/client/checkout/CheckoutSummary.vue";
@@ -19,221 +12,233 @@ const router = useRouter();
 const cartStore = useCartStore();
 
 const addressModalOpen = ref(false);
+const editingAddressId = ref(null);
 const voucherCode = ref("");
 const toast = ref(null);
 const initialized = ref(false);
+const pageLoading = ref(false);
+const loadError = ref("");
+const selectionError = ref("");
+const orderCompleted = ref(false);
+const completedOrderId = ref(null);
 
-let toastTimer = null;
-let previewTimer = null;
+let toastTimer;
+let previewTimer;
+let loadVersion = 0;
+let disposed = false;
 
-const requestedItemIds = computed(() => {
-    return parseIds(route.query.items);
-});
+const requestedItemIds = computed(() =>
+    cartStore.normalizeIds(
+        Array.isArray(route.query.items)
+            ? route.query.items.join(",")
+            : route.query.items || "",
+    ),
+);
 
 const checkoutItems = computed(() => {
-    return cartStore.selectedCheckoutItems || [];
+    if (cartStore.checkoutPreview?.cart_data?.items) {
+        return cartStore.checkoutPreview.cart_data.items;
+    }
+
+    return cartStore.selectedCheckoutItems;
 });
 
-const addresses = computed(() => {
-    return cartStore.addresses || [];
+const addresses = computed(() => cartStore.addresses);
+const deliveryMethods = computed(() => cartStore.deliveryMethods);
+const selectedAddress = computed(() => cartStore.selectedAddress);
+
+const selectedAddressText = computed(() => {
+    if (!selectedAddress.value) return "";
+
+    return [
+        selectedAddress.value.address_detail,
+        selectedAddress.value.ward,
+        selectedAddress.value.district,
+        selectedAddress.value.province,
+    ]
+        .map((value) => String(value ?? "").trim())
+        .filter(Boolean)
+        .join(", ");
 });
 
-const deliveryMethods = computed(() => {
-    return cartStore.deliveryMethods || [];
+const addressNeedsUpdate = computed(() => {
+    const address = selectedAddress.value;
+
+    if (!address) return false;
+
+    return (
+        String(address.district ?? "").trim() !== "" ||
+        String(address.district_id ?? "").trim() !== "" ||
+        String(address.province_id ?? "").trim() === "" ||
+        String(address.ward_id ?? "").trim() === ""
+    );
 });
+
+const formLocked = computed(
+    () =>
+        pageLoading.value ||
+        cartStore.saving ||
+        cartStore.checkingOut ||
+        orderCompleted.value ||
+        cartStore.checkoutUncertain,
+);
 
 const paymentMethods = computed(() => {
-    const methods = cartStore.paymentMethods || [];
-
-    if (methods.length) {
-        return methods.map((method) => ({
-            value: method.value,
-            title: method.label || method.title || method.value,
-            description: method.description || paymentDescription(method.value),
-            icon: paymentIcon(method.value),
-        }));
-    }
+    const cod = cartStore.paymentMethods.find((item) => item.value === "COD");
 
     return [
         {
             value: "COD",
-            title: "Thanh toán khi nhận hàng",
+            title: cod?.label || "Thanh toán khi nhận hàng",
             description: "Thanh toán tiền mặt cho đơn vị vận chuyển.",
             icon: "mdi:cash-on-delivery",
+            enabled:
+                cod?.enabled !== false &&
+                cod?.enabled !== 0 &&
+                cod?.enabled !== "0",
         },
         {
             value: "VNPAY",
-            title: "Ví VNPAY / Ngân hàng",
-            description: "Thanh toán trực tuyến qua cổng VNPAY.",
+            title: "VNPAY / Ngân hàng",
+            description: "Sắp hỗ trợ thanh toán trực tuyến.",
             icon: "mdi:qrcode-scan",
+            enabled: false,
         },
     ];
 });
 
-const selectedAddress = computed(() => {
-    return cartStore.selectedAddress;
-});
-
-const selectedDelivery = computed(() => {
-    return cartStore.selectedDelivery;
-});
-
-const merchandiseTotal = computed(() => {
-    return cartStore.checkoutSubtotal;
-});
-
-const shippingCost = computed(() => {
-    return cartStore.checkoutDeliveryCost;
-});
-
-const discountAmount = computed(() => {
-    return cartStore.checkoutDiscountAmount;
-});
-
-const totalPayment = computed(() => {
-    return cartStore.checkoutTotalPayment;
-});
-
-const estimatedDelivery = computed(() => {
-    const date = new Date();
-
-    const name = String(selectedDelivery.value?.name || "").toLowerCase();
-    const days = name.includes("nhanh") ? 2 : 5;
-
-    date.setDate(date.getDate() + days);
-
-    return date.toLocaleDateString("vi-VN", {
-        weekday: "long",
-        day: "2-digit",
-        month: "2-digit",
-    });
-});
-
-const canPlaceOrder = computed(() => {
-    return (
+const canPlaceOrder = computed(
+    () =>
+        initialized.value &&
+        !selectionError.value &&
+        !loadError.value &&
+        !addressNeedsUpdate.value &&
         checkoutItems.value.length > 0 &&
-        Boolean(cartStore.checkoutForm.delivery_id) &&
-        Boolean(cartStore.checkoutForm.payment_method) &&
-        Boolean(
-            cartStore.checkoutForm.shipping_address_id ||
-            (
-                cartStore.checkoutForm.receiver_name &&
-                cartStore.checkoutForm.receiver_phone &&
-                cartStore.checkoutForm.province &&
-                cartStore.checkoutForm.district &&
-                cartStore.checkoutForm.ward &&
-                cartStore.checkoutForm.address_detail
-            ),
-        ) &&
+        Boolean(cartStore.checkoutPreview) &&
+        cartStore.canPreview &&
+        cartStore.checkoutForm.payment_method === "COD" &&
+        paymentMethods.value[0].enabled &&
+        !formLocked.value &&
         !cartStore.loading &&
-        !cartStore.previewing &&
-        !cartStore.checkingOut
-    );
-});
-
-function parseIds(value) {
-    return String(value || "")
-        .split(",")
-        .map((id) => Number(id))
-        .filter(Boolean);
-}
-
-function paymentIcon(value) {
-    if (value === "VNPAY") {
-        return "mdi:qrcode-scan";
-    }
-
-    return "mdi:cash-on-delivery";
-}
-
-function paymentDescription(value) {
-    if (value === "VNPAY") {
-        return "Thanh toán trực tuyến qua cổng VNPAY.";
-    }
-
-    return "Thanh toán tiền mặt cho đơn vị vận chuyển.";
-}
+        !cartStore.previewing,
+);
 
 function formatVND(value) {
     return new Intl.NumberFormat("vi-VN", {
         style: "currency",
         currency: "VND",
-        maximumFractionDigits: 0,
     }).format(Number(value || 0));
 }
 
 function showToast(message, type = "success") {
-    toast.value = {
-        message,
-        type,
-    };
+    if (disposed) return;
+
+    toast.value = { message, type };
 
     window.clearTimeout(toastTimer);
-
     toastTimer = window.setTimeout(() => {
         toast.value = null;
-    }, 3000);
+    }, 3500);
 }
 
-function safeBackToCart(message = "Vui lòng chọn sản phẩm cần thanh toán.") {
-    showToast(message, "error");
-
-    window.setTimeout(() => {
-        router.replace({
-            name: "cart",
-        });
-    }, 700);
-}
-
-function schedulePreview() {
-    if (!initialized.value) {
-        return;
-    }
-
+function cancelPreviewTimer() {
     window.clearTimeout(previewTimer);
+}
 
-    previewTimer = window.setTimeout(async () => {
-        await previewOrder();
-    }, 300);
+function openAddressBook() {
+    if (formLocked.value) return;
+
+    editingAddressId.value = null;
+    addressModalOpen.value = true;
+}
+
+function updateSelectedAddress() {
+    if (formLocked.value || !selectedAddress.value) return;
+
+    editingAddressId.value = selectedAddress.value.id;
+    addressModalOpen.value = true;
 }
 
 async function previewOrder() {
-    if (!checkoutItems.value.length || !cartStore.checkoutForm.delivery_id) {
+    cancelPreviewTimer();
+
+    if (
+        !initialized.value ||
+        selectionError.value ||
+        addressNeedsUpdate.value ||
+        formLocked.value ||
+        !cartStore.canPreview
+    ) {
+        return null;
+    }
+
+    try {
+        return await cartStore.previewCheckout();
+    } catch {
+        // Lỗi được hiển thị từ cartStore.errorMsg.
+        return null;
+    }
+}
+
+function schedulePreview() {
+    cancelPreviewTimer();
+
+    if (
+        !initialized.value ||
+        formLocked.value ||
+        selectionError.value ||
+        addressNeedsUpdate.value ||
+        !cartStore.canPreview
+    ) {
         return;
     }
 
-    try {
-        await cartStore.previewCheckout(requestedItemIds.value);
-    } catch (error) {
-        showToast(
-            cartStore.errorMsg || "Không tính được đơn hàng.",
-            "error",
-        );
-    }
+    previewTimer = window.setTimeout(previewOrder, 300);
 }
 
 function selectAddress(id) {
+    if (formLocked.value) return;
+
     cartStore.selectAddress(id);
 }
 
-async function saveAddress(payload) {
+async function saveAddress(payload, done) {
+    if (formLocked.value) {
+        done?.({
+            ok: false,
+            message: "Đang xử lý yêu cầu trước. Vui lòng chờ.",
+        });
+        return;
+    }
+
+    cancelPreviewTimer();
+
     try {
         await cartStore.saveAddress(payload);
 
-        showToast(
-            cartStore.message || "Lưu địa chỉ nhận hàng thành công.",
-        );
-    } catch (error) {
-        showToast(
-            cartStore.errorMsg || "Không lưu được địa chỉ.",
-            "error",
-        );
+        done?.({
+            ok: true,
+            selectedId: cartStore.checkoutForm.shipping_address_id,
+        });
 
-        throw error;
+        editingAddressId.value = null;
+
+        showToast(cartStore.message || "Đã lưu địa chỉ.");
+        schedulePreview();
+    } catch (error) {
+        done?.({
+            ok: false,
+            message:
+                cartStore.errorMsg ||
+                error.message ||
+                "Không lưu được địa chỉ.",
+        });
     }
 }
 
 async function applyVoucher() {
+    if (formLocked.value || cartStore.previewing) return;
+
     const code = voucherCode.value.trim().toUpperCase();
 
     if (!code) {
@@ -241,161 +246,170 @@ async function applyVoucher() {
         return;
     }
 
-    cartStore.checkoutForm.discount_code = code;
-
-    try {
-        await cartStore.previewCheckout(requestedItemIds.value);
-
-        showToast("Áp dụng voucher thành công.");
-    } catch (error) {
-        cartStore.checkoutForm.discount_code = "";
-        voucherCode.value = "";
-
+    if (!cartStore.canPreview || addressNeedsUpdate.value) {
         showToast(
-            cartStore.errorMsg || "Mã giảm giá không hợp lệ.",
+            "Hãy chọn địa chỉ hợp lệ và phương thức giao hàng trước.",
             "error",
         );
+        return;
+    }
+
+    cartStore.checkoutForm.discount_code = code;
+    cancelPreviewTimer();
+
+    const response = await previewOrder();
+
+    if (response && cartStore.appliedDiscount) {
+        showToast("Áp dụng mã giảm giá thành công.");
     }
 }
 
 async function removeVoucher() {
-    cartStore.checkoutForm.discount_code = "";
+    if (formLocked.value || cartStore.previewing) return;
+
     voucherCode.value = "";
-    cartStore.checkoutPreview = null;
+    cartStore.checkoutForm.discount_code = "";
+    cancelPreviewTimer();
 
     await previewOrder();
-
-    showToast("Đã gỡ voucher.");
 }
 
-async function placeOrder() {
-    if (!checkoutItems.value.length) {
-        safeBackToCart("Không có sản phẩm để thanh toán.");
-        return;
-    }
-
-    if (!selectedAddress.value && !cartStore.checkoutForm.receiver_name) {
-        showToast("Vui lòng chọn hoặc thêm địa chỉ nhận hàng.", "error");
-        addressModalOpen.value = true;
-        return;
-    }
-
-    if (!cartStore.checkoutForm.delivery_id) {
-        showToast("Vui lòng chọn phương thức giao hàng.", "error");
-        return;
-    }
-
-    if (!cartStore.checkoutForm.payment_method) {
-        showToast("Vui lòng chọn phương thức thanh toán.", "error");
-        return;
-    }
-
+async function goToOrder() {
     try {
-        const response = await cartStore.checkout(requestedItemIds.value);
-
-        const order = response.data?.data?.order || cartStore.createdOrder;
-
-        showToast("Đặt hàng thành công.");
-
-        window.setTimeout(() => {
-            if (order?.id && router.hasRoute("order-detail")) {
-                router.push({
+        await router.replace(
+            completedOrderId.value
+                ? {
                     name: "order-detail",
-                    params: {
-                        id: order.id,
-                    },
-                });
-
-                return;
-            }
-
-            if (router.hasRoute("my-orders")) {
-                router.push({
-                    name: "my-orders",
-                });
-
-                return;
-            }
-
-            router.push({
-                name: "profile",
-            });
-        }, 700);
-    } catch (error) {
+                    params: { id: completedOrderId.value },
+                }
+                : { name: "my-orders" },
+        );
+    } catch {
         showToast(
-            cartStore.errorMsg || "Không đặt được đơn hàng.",
+            "Đơn đã tạo. Bạn có thể mở Đơn mua để xem.",
             "error",
         );
     }
 }
 
-watch(
-    () => cartStore.checkoutForm.delivery_id,
-    () => {
-        schedulePreview();
-    },
-);
+async function placeOrder() {
+    if (!canPlaceOrder.value) return;
 
-onMounted(async () => {
+    cancelPreviewTimer();
+
+    try {
+        const response = await cartStore.checkout();
+        const order = response.data?.data?.order || cartStore.createdOrder;
+
+        orderCompleted.value = true;
+        completedOrderId.value = order?.id || null;
+
+        if (!disposed) await goToOrder();
+    } catch (error) {
+        showToast(
+            cartStore.errorMsg || error.message || "Không đặt được đơn hàng.",
+            "error",
+        );
+    }
+}
+
+async function initializePage() {
+    if (cartStore.checkingOut || orderCompleted.value) return;
+
+    const version = ++loadVersion;
+
+    initialized.value = false;
+    pageLoading.value = true;
+    loadError.value = "";
+    selectionError.value = "";
+
+    cancelPreviewTimer();
+    cartStore.invalidatePreview();
+
     const ids = requestedItemIds.value;
 
     if (!ids.length) {
-        safeBackToCart();
+        selectionError.value =
+            "Vui lòng quay lại giỏ và chọn sản phẩm cần mua.";
+
+        cartStore.setCheckoutItemIds([]);
+        pageLoading.value = false;
         return;
     }
 
+    const discount = Array.isArray(route.query.discount)
+        ? route.query.discount[0]
+        : route.query.discount;
+
+    cartStore.checkoutForm.discount_code = String(discount || "")
+        .trim()
+        .toUpperCase();
+
+    voucherCode.value = cartStore.checkoutForm.discount_code;
+
     try {
-        const discount = String(route.query.discount || "")
-            .trim()
-            .toUpperCase();
+        const result = await cartStore.loadCheckoutData(ids);
 
-        if (discount) {
-            cartStore.checkoutForm.discount_code = discount;
-            voucherCode.value = discount;
-        }
+        if (disposed || version !== loadVersion) return;
 
-        await cartStore.loadCheckoutData(ids);
-
-        if (!checkoutItems.value.length) {
-            safeBackToCart("Sản phẩm thanh toán không còn trong giỏ hàng.");
+        if (result.missingItemIds.length) {
+            selectionError.value =
+                "Một số sản phẩm đã chọn không còn trong giỏ. Vui lòng quay lại giỏ để kiểm tra.";
             return;
         }
 
         initialized.value = true;
     } catch (error) {
-        safeBackToCart(
-            cartStore.errorMsg || "Không tải được dữ liệu thanh toán.",
-        );
+        if (version === loadVersion && !disposed) {
+            loadError.value =
+                cartStore.errorMsg ||
+                error.message ||
+                "Không tải được dữ liệu thanh toán.";
+        }
+    } finally {
+        if (version === loadVersion && !disposed) {
+            pageLoading.value = false;
+        }
     }
-});
+
+    if (initialized.value && version === loadVersion && !disposed) {
+        await previewOrder();
+    }
+}
+
+watch(
+    () => cartStore.previewKey,
+    schedulePreview,
+    { flush: "sync" },
+);
+
+watch(
+    () => [route.query.items, route.query.discount],
+    initializePage,
+    { immediate: true },
+);
 
 onBeforeUnmount(() => {
+    disposed = true;
+    loadVersion++;
+
     window.clearTimeout(toastTimer);
-    window.clearTimeout(previewTimer);
+    cancelPreviewTimer();
+    cartStore.invalidatePreview();
 });
 </script>
 
 <template>
     <div class="min-h-[70vh] bg-[#f7f9f7] font-sans text-slate-800">
         <div class="border-b border-slate-100 bg-white">
-            <div class="mx-auto flex max-w-[1320px] items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
-                <nav class="flex items-center gap-2 text-xs text-slate-400">
-                    <RouterLink to="/cart" class="transition hover:text-[#07532b]">
-                        Giỏ hàng
-                    </RouterLink>
-
-                    <Icon icon="mdi:chevron-right" />
-
-                    <span class="font-medium text-[#174e31]">
-                        Thanh toán
-                    </span>
-                </nav>
-
-                <div class="hidden items-center gap-2 text-[11px] text-slate-400 sm:flex">
-                    <Icon icon="mdi:shield-check-outline" class="text-lg text-[#0a7139]" />
-                    Thanh toán an toàn
-                </div>
-            </div>
+            <nav aria-label="Breadcrumb"
+                class="mx-auto flex max-w-[1320px] items-center gap-2 px-4 py-4 text-xs text-slate-400 sm:px-6 lg:px-8">
+                <RouterLink :to="{ name: 'cart' }" class="hover:text-[#07532b]">
+                    Giỏ hàng
+                </RouterLink>
+                <Icon icon="mdi:chevron-right" />
+                <span class="font-medium text-[#174e31]">Thanh toán</span>
+            </nav>
         </div>
 
         <main class="mx-auto max-w-[1320px] px-4 py-8 sm:px-6 lg:px-8 lg:py-12">
@@ -405,312 +419,275 @@ onBeforeUnmount(() => {
                     <Icon icon="mdi:sprout-outline" class="text-base" />
                     NFarmHouse
                 </span>
-
                 <h1 class="text-2xl font-extrabold text-[#123d27] sm:text-3xl">
                     Thanh toán đơn hàng
                 </h1>
-
                 <p class="mt-1 text-sm text-slate-500">
-                    Kiểm tra địa chỉ, vận chuyển và phương thức thanh toán trước khi đặt hàng.
+                    Kiểm tra thông tin nhận hàng trước khi đặt đơn.
                 </p>
             </div>
 
-            <div v-if="cartStore.errorMsg"
-                class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
-                <Icon icon="mdi:alert-circle-outline" class="mt-0.5 shrink-0 text-xl" />
-
-                <span>{{ cartStore.errorMsg }}</span>
+            <div v-if="orderCompleted" class="rounded-3xl border border-green-200 bg-white p-6">
+                <h2 class="font-bold text-green-700">Đặt hàng thành công</h2>
+                <button type="button" class="mt-4 rounded-full bg-[#07532b] px-5 py-3 text-sm font-bold text-white"
+                    @click="goToOrder">
+                    Xem đơn hàng
+                </button>
             </div>
 
-            <div v-if="cartStore.loading"
-                class="grid min-h-80 place-items-center rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+            <div v-else-if="pageLoading"
+                class="grid min-h-80 place-items-center rounded-3xl border border-slate-200 bg-white">
                 <div class="text-center">
-                    <Icon icon="mdi:loading" class="mx-auto text-5xl text-[#07532b] animate-spin" />
-
-                    <p class="mt-4 text-sm font-semibold text-slate-500">
+                    <Icon icon="mdi:loading" class="mx-auto animate-spin text-5xl text-[#07532b]" />
+                    <p class="mt-4 text-sm text-slate-500">
                         Đang tải dữ liệu thanh toán...
                     </p>
                 </div>
             </div>
 
-            <div v-else class="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_380px]">
-                <div class="space-y-5">
-                    <section
-                        class="relative overflow-hidden rounded-3xl border border-[#e7c866] bg-white p-5 shadow-sm sm:p-6">
-                        <div
-                            class="absolute inset-x-0 top-0 h-1 bg-[repeating-linear-gradient(45deg,#0a7139_0,#0a7139_16px,#ffd326_16px,#ffd326_32px,#fff_32px,#fff_48px)]">
-                        </div>
+            <div v-else-if="loadError || selectionError" class="rounded-3xl border border-red-100 bg-white p-6">
+                <p role="alert" class="text-sm text-red-600">
+                    {{ loadError || selectionError }}
+                </p>
+                <div class="mt-4 flex gap-4">
+                    <button v-if="loadError" type="button" class="font-semibold text-[#07532b]" @click="initializePage">
+                        Tải lại
+                    </button>
+                    <RouterLink :to="{ name: 'cart' }" class="font-semibold text-[#07532b]">
+                        Quay lại giỏ hàng
+                    </RouterLink>
+                </div>
+            </div>
 
-                        <div class="flex items-start justify-between gap-4">
-                            <div class="flex min-w-0 gap-3">
-                                <span
-                                    class="grid size-10 shrink-0 place-items-center rounded-full bg-[#edf5f0] text-[#07532b]">
-                                    <Icon icon="mdi:map-marker-outline" class="text-2xl" />
-                                </span>
+            <template v-else>
+                <div v-if="cartStore.errorMsg" role="alert"
+                    class="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+                    {{ cartStore.errorMsg }}
+                </div>
 
-                                <div v-if="selectedAddress" class="min-w-0">
-                                    <h2 class="text-sm font-bold text-[#123d27]">
-                                        Địa chỉ nhận hàng
-                                    </h2>
+                <div v-if="cartStore.checkoutUncertain"
+                    class="mb-5 rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+                    Chưa rõ kết quả yêu cầu đặt hàng trước. Hãy kiểm tra đơn mua
+                    trước khi thực hiện lại.
+                    <RouterLink :to="{ name: 'my-orders' }" class="ml-2 font-bold underline">
+                        Xem đơn mua
+                    </RouterLink>
+                </div>
 
-                                    <div class="mt-2 flex flex-wrap items-center gap-2">
-                                        <strong class="text-sm">
-                                            {{ selectedAddress.receiver_name }}
-                                        </strong>
+                <div class="grid items-start gap-7 lg:grid-cols-[minmax(0,1fr)_380px]">
+                    <div class="space-y-5">
+                        <section
+                            class="relative overflow-hidden rounded-3xl border border-[#e7c866] bg-white p-5 shadow-sm sm:p-6">
+                            <div
+                                class="absolute inset-x-0 top-0 h-1 bg-[repeating-linear-gradient(45deg,#0a7139_0,#0a7139_16px,#ffd326_16px,#ffd326_32px,#fff_32px,#fff_48px)]">
+                            </div>
 
-                                        <span class="h-4 w-px bg-slate-200"></span>
+                            <div class="flex items-start justify-between gap-4">
+                                <div class="flex min-w-0 gap-3">
+                                    <Icon icon="mdi:map-marker-outline" class="shrink-0 text-3xl text-[#07532b]" />
 
-                                        <span class="text-sm text-slate-600">
-                                            {{ selectedAddress.receiver_phone }}
-                                        </span>
-
-                                        <span v-if="selectedAddress.is_default"
-                                            class="rounded border border-[#0a7139] px-1.5 py-0.5 text-[9px] font-bold uppercase text-[#0a7139]">
-                                            Mặc định
-                                        </span>
+                                    <div v-if="selectedAddress" class="min-w-0">
+                                        <h2 class="text-sm font-bold text-[#123d27]">
+                                            Địa chỉ nhận hàng
+                                        </h2>
+                                        <p class="mt-2 text-sm">
+                                            <strong>{{ selectedAddress.receiver_name }}</strong>
+                                            · {{ selectedAddress.receiver_phone }}
+                                        </p>
+                                        <p class="mt-2 text-xs leading-5 text-slate-500">
+                                            {{ selectedAddressText }}
+                                        </p>
                                     </div>
 
-                                    <p class="mt-2 text-xs leading-5 text-slate-500">
-                                        {{ selectedAddress.address_detail }},
-                                        {{ selectedAddress.ward }},
-                                        {{ selectedAddress.district }},
-                                        {{ selectedAddress.province }}
-                                    </p>
+                                    <div v-else>
+                                        <h2 class="text-sm font-bold text-[#123d27]">
+                                            Chưa có địa chỉ nhận hàng
+                                        </h2>
+                                        <p class="mt-2 text-xs text-slate-500">
+                                            Thêm địa chỉ để tiếp tục thanh toán.
+                                        </p>
+                                    </div>
                                 </div>
 
-                                <div v-else class="min-w-0">
-                                    <h2 class="text-sm font-bold text-[#123d27]">
-                                        Chưa có địa chỉ nhận hàng
-                                    </h2>
-
-                                    <p class="mt-2 text-xs leading-5 text-slate-500">
-                                        Thêm địa chỉ để hệ thống lưu và dùng cho các lần đặt hàng sau.
-                                    </p>
-                                </div>
+                                <button type="button"
+                                    class="shrink-0 rounded-full border border-[#bdd3c5] px-4 py-2 text-xs font-bold text-[#07532b] disabled:opacity-40"
+                                    :disabled="formLocked" @click="openAddressBook">
+                                    {{ selectedAddress ? "Thay đổi" : "Thêm địa chỉ" }}
+                                </button>
                             </div>
 
-                            <button type="button"
-                                class="shrink-0 rounded-full border border-[#bdd3c5] px-4 py-2 text-xs font-bold text-[#07532b] transition hover:bg-[#f2f8f4]"
-                                @click="addressModalOpen = true">
-                                {{
-                                    selectedAddress
-                                        ? "Thay đổi"
-                                        : "Thêm địa chỉ"
-                                }}
-                            </button>
-                        </div>
-                    </section>
+                            <div v-if="addressNeedsUpdate"
+                                class="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-800">
+                                Địa chỉ này đang dùng thông tin cũ. Vui lòng chọn lại
+                                tỉnh/thành và phường/xã mới trước khi thanh toán.
+                                <button type="button" class="ml-1 font-bold underline disabled:opacity-40"
+                                    :disabled="formLocked" @click="updateSelectedAddress">
+                                    Cập nhật địa chỉ
+                                </button>
+                            </div>
+                        </section>
 
-                    <CheckoutProducts :items="checkoutItems" />
+                        <CheckoutProducts :items="checkoutItems" />
 
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div class="mb-4 flex items-center justify-between">
-                            <div>
-                                <h2 class="text-base font-bold text-[#123d27]">
-                                    Phương thức giao hàng
-                                </h2>
+                        <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                            <h2 class="text-base font-bold text-[#123d27]">
+                                Phương thức giao hàng
+                            </h2>
+                            <p class="mt-1 text-xs text-slate-500">
+                                Phí cố định theo phương thức. Điều kiện áp dụng được kiểm
+                                tra theo địa chỉ và tiền hàng sau giảm giá.
+                            </p>
 
-                                <p class="mt-1 text-xs text-slate-400">
-                                    Phí giao hàng được backend tính lại theo phương thức đang chọn.
-                                </p>
+                            <div v-if="!deliveryMethods.length" class="mt-4 text-sm text-amber-700">
+                                Hiện chưa có phương thức giao hàng.
                             </div>
 
-                            <Icon icon="mdi:truck-delivery-outline" class="text-2xl text-[#0a7139]" />
-                        </div>
-
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <label v-for="method in deliveryMethods" :key="method.id"
-                                class="cursor-pointer rounded-2xl border p-4 transition" :class="Number(cartStore.checkoutForm.delivery_id) === Number(method.id)
-                                    ? 'border-[#0a7139] bg-[#f2f8f4] ring-2 ring-[#0a7139]/10'
-                                    : 'border-slate-200 hover:border-[#9dbba8]'">
-                                <input v-model="cartStore.checkoutForm.delivery_id" type="radio" :value="method.id"
-                                    class="hidden" />
-
-                                <div class="flex items-start gap-3">
-                                    <span
-                                        class="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#07532b]">
-                                        <Icon :icon="String(method.name || '').toLowerCase().includes('nhanh')
-                                            ? 'mdi:truck-fast-outline'
-                                            : 'mdi:truck-outline'" class="text-2xl" />
-                                    </span>
-
-                                    <div class="min-w-0 flex-1">
-                                        <div class="flex items-center justify-between gap-3">
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                <label v-for="method in deliveryMethods" :key="method.id"
+                                    class="rounded-2xl border p-4 transition" :class="Number(cartStore.checkoutForm.delivery_id) ===
+                                        Number(method.id)
+                                        ? 'border-[#0a7139] bg-[#f2f8f4]'
+                                        : 'border-slate-200'
+                                        ">
+                                    <div class="flex items-start gap-3">
+                                        <input v-model="cartStore.checkoutForm.delivery_id" type="radio"
+                                            :value="method.id" :disabled="formLocked" class="mt-1 accent-[#07532b]" />
+                                        <div>
                                             <strong class="text-sm text-[#123d27]">
                                                 {{ method.name }}
                                             </strong>
-
-                                            <span v-if="method.is_default"
-                                                class="rounded-full bg-[#fff4cc] px-2 py-0.5 text-[9px] font-bold text-[#876300]">
-                                                Mặc định
-                                            </span>
-                                        </div>
-
-                                        <p class="mt-1 text-xs leading-5 text-slate-500">
-                                            {{ method.description || "Không có mô tả" }}
-                                        </p>
-
-                                        <div class="mt-3 flex flex-wrap items-center gap-2 text-[11px]">
-                                            <span class="rounded-full bg-slate-100 px-2.5 py-1 text-slate-600">
-                                                {{ method.region || "Toàn quốc" }}
-                                            </span>
-
-                                            <span
-                                                class="rounded-full bg-[#edf5f0] px-2.5 py-1 font-semibold text-[#07532b]">
-                                                {{
-                                                    method.base_price
-                                                        ? formatVND(method.base_price)
-                                                        : "Miễn phí"
-                                                }}
-                                            </span>
-
-                                            <span v-if="Number(method.min_order_amount || 0) > 0"
-                                                class="rounded-full bg-slate-100 px-2.5 py-1 text-slate-500">
-                                                Free từ {{ formatVND(method.min_order_amount) }}
-                                            </span>
+                                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                                {{ method.description }}
+                                            </p>
+                                            <p class="mt-3 text-sm font-semibold text-[#07532b]">
+                                                {{ formatVND(method.base_price) }}
+                                            </p>
+                                            <p v-if="Number(method.min_order_amount) > 0"
+                                                class="mt-1 text-xs text-slate-500">
+                                                Tiền hàng sau giảm giá từ
+                                                {{ formatVND(method.min_order_amount) }}
+                                            </p>
                                         </div>
                                     </div>
-                                </div>
-                            </label>
-                        </div>
-
-                        <div v-if="selectedDelivery"
-                            class="mt-4 rounded-2xl bg-[#f7faf8] px-4 py-3 text-xs text-slate-500">
-                            Dự kiến nhận hàng:
-                            <strong class="text-[#07532b]">
-                                {{ estimatedDelivery }}
-                            </strong>
-                        </div>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div class="mb-4 flex items-center justify-between">
-                            <div>
-                                <h2 class="text-base font-bold text-[#123d27]">
-                                    Phương thức thanh toán
-                                </h2>
-
-                                <p class="mt-1 text-xs text-slate-400">
-                                    COD dùng được ngay. VNPAY có thể nối cổng thanh toán sau.
-                                </p>
-                            </div>
-
-                            <Icon icon="mdi:credit-card-check-outline" class="text-2xl text-[#0a7139]" />
-                        </div>
-
-                        <div class="grid gap-3 sm:grid-cols-2">
-                            <label v-for="method in paymentMethods" :key="method.value"
-                                class="cursor-pointer rounded-2xl border p-4 transition" :class="cartStore.checkoutForm.payment_method === method.value
-                                    ? 'border-[#0a7139] bg-[#f2f8f4] ring-2 ring-[#0a7139]/10'
-                                    : 'border-slate-200 hover:border-[#9dbba8]'">
-                                <input v-model="cartStore.checkoutForm.payment_method" type="radio"
-                                    :value="method.value" class="hidden" />
-
-                                <div class="flex gap-3">
-                                    <span
-                                        class="grid size-10 shrink-0 place-items-center rounded-full bg-white text-[#07532b]">
-                                        <Icon :icon="method.icon" class="text-2xl" />
-                                    </span>
-
-                                    <div>
-                                        <strong class="text-sm text-[#123d27]">
-                                            {{ method.title }}
-                                        </strong>
-
-                                        <p class="mt-1 text-xs leading-5 text-slate-500">
-                                            {{ method.description }}
-                                        </p>
-                                    </div>
-                                </div>
-                            </label>
-                        </div>
-                    </section>
-
-                    <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
-                        <div class="grid gap-5 md:grid-cols-2">
-                            <div>
-                                <label class="mb-2 block text-xs font-bold uppercase tracking-wide text-[#365846]">
-                                    Voucher
                                 </label>
+                            </div>
+                        </section>
 
-                                <div v-if="!cartStore.appliedDiscount" class="flex gap-2">
-                                    <div class="relative min-w-0 flex-1">
-                                        <Icon icon="mdi:ticket-percent-outline"
-                                            class="absolute left-3 top-1/2 -translate-y-1/2 text-lg text-slate-400" />
+                        <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                            <h2 class="text-base font-bold text-[#123d27]">
+                                Phương thức thanh toán
+                            </h2>
 
-                                        <input v-model="voucherCode" type="text" placeholder="Nhập mã giảm giá"
-                                            class="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-sm uppercase outline-none transition placeholder:normal-case focus:border-[#0a7139] focus:ring-4 focus:ring-[#0a7139]/10"
-                                            @keyup.enter="applyVoucher" />
-                                    </div>
-
-                                    <button type="button"
-                                        class="rounded-xl bg-[#e9b817] px-4 text-xs font-bold text-[#073f22] transition hover:bg-[#ffd329] disabled:cursor-not-allowed disabled:opacity-50"
-                                        :disabled="cartStore.previewing || !voucherCode.trim()" @click="applyVoucher">
-                                        {{
-                                            cartStore.previewing
-                                                ? "Đang..."
-                                                : "Áp dụng"
-                                        }}
-                                    </button>
-                                </div>
-
-                                <div v-else
-                                    class="flex items-center justify-between rounded-xl border border-dashed border-[#8eb89e] bg-[#f1f7f3] px-3 py-2.5">
-                                    <div class="flex items-center gap-2">
-                                        <Icon icon="mdi:ticket-confirmation-outline" class="text-xl text-[#0a7139]" />
-
+                            <div class="mt-4 grid gap-3 sm:grid-cols-2">
+                                <label v-for="method in paymentMethods" :key="method.value"
+                                    class="rounded-2xl border p-4" :class="[
+                                        !method.enabled
+                                            ? 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60'
+                                            : 'cursor-pointer',
+                                        method.enabled &&
+                                            cartStore.checkoutForm.payment_method === method.value
+                                            ? 'border-[#0a7139] bg-[#f2f8f4]'
+                                            : '',
+                                    ]">
+                                    <div class="flex gap-3">
+                                        <input v-model="cartStore.checkoutForm.payment_method" type="radio"
+                                            :value="method.value" :disabled="!method.enabled || formLocked"
+                                            class="mt-1 accent-[#07532b]" />
+                                        <Icon :icon="method.icon" class="shrink-0 text-2xl text-[#07532b]" />
                                         <div>
-                                            <strong class="block text-xs text-[#07532b]">
-                                                {{ cartStore.appliedDiscount.discount_code }}
+                                            <strong class="text-sm text-[#123d27]">
+                                                {{ method.title }}
                                             </strong>
-
-                                            <span class="text-[10px] text-slate-500">
-                                                Giảm {{ formatVND(discountAmount) }}
-                                            </span>
+                                            <p class="mt-1 text-xs leading-5 text-slate-500">
+                                                {{ method.description }}
+                                            </p>
                                         </div>
                                     </div>
+                                </label>
+                            </div>
+                        </section>
 
-                                    <button type="button" class="text-xs font-semibold text-red-500 hover:underline"
-                                        @click="removeVoucher">
-                                        Bỏ mã
-                                    </button>
+                        <section class="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm sm:p-6">
+                            <div class="grid gap-5 md:grid-cols-2">
+                                <div>
+                                    <label for="voucher-code"
+                                        class="mb-2 block text-xs font-bold uppercase text-[#365846]">
+                                        Mã giảm giá
+                                    </label>
+
+                                    <div class="flex gap-2">
+                                        <input id="voucher-code" v-model="voucherCode" type="text" maxlength="255"
+                                            placeholder="Nhập mã giảm giá"
+                                            class="h-11 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm uppercase outline-none focus:border-[#0a7139]"
+                                            :disabled="formLocked || cartStore.previewing"
+                                            @keyup.enter="applyVoucher" />
+
+                                        <button type="button"
+                                            class="rounded-xl bg-[#e9b817] px-4 text-xs font-bold text-[#073f22] disabled:opacity-40"
+                                            :disabled="formLocked ||
+                                                cartStore.previewing ||
+                                                !voucherCode.trim() ||
+                                                !cartStore.canPreview ||
+                                                addressNeedsUpdate
+                                                " @click="applyVoucher">
+                                            Áp dụng
+                                        </button>
+                                    </div>
+
+                                    <div v-if="cartStore.checkoutForm.discount_code"
+                                        class="mt-3 flex items-center justify-between gap-2 text-xs">
+                                        <span :class="cartStore.appliedDiscount
+                                            ? 'text-green-700'
+                                            : 'text-slate-500'
+                                            ">
+                                            {{ cartStore.checkoutForm.discount_code }}
+                                            ·
+                                            {{
+                                                cartStore.appliedDiscount
+                                                    ? "Đã áp dụng"
+                                                    : "Chưa được xác nhận"
+                                            }}
+                                        </span>
+
+                                        <button type="button" class="shrink-0 text-red-500 disabled:opacity-40"
+                                            :disabled="formLocked || cartStore.previewing" @click="removeVoucher">
+                                            Bỏ mã
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <label for="order-note"
+                                        class="mb-2 block text-xs font-bold uppercase text-[#365846]">
+                                        Ghi chú đơn hàng
+                                    </label>
+                                    <textarea id="order-note" v-model.trim="cartStore.checkoutForm.note" rows="3"
+                                        maxlength="1000"
+                                        class="w-full rounded-xl border border-slate-200 px-3 py-3 text-sm outline-none focus:border-[#0a7139]"
+                                        :disabled="formLocked" placeholder="Ví dụ: gọi trước khi giao..."></textarea>
                                 </div>
                             </div>
+                        </section>
+                    </div>
 
-                            <div>
-                                <label class="mb-2 block text-xs font-bold uppercase tracking-wide text-[#365846]">
-                                    Ghi chú đơn hàng
-                                </label>
-
-                                <textarea v-model.trim="cartStore.checkoutForm.note" rows="3"
-                                    class="w-full resize-none rounded-xl border border-slate-200 bg-white px-3.5 py-3 text-sm text-slate-700 outline-none transition placeholder:text-slate-300 focus:border-[#0a7139] focus:ring-4 focus:ring-[#0a7139]/10"
-                                    placeholder="Ví dụ: gọi trước khi giao, giao giờ hành chính..."></textarea>
-                            </div>
-                        </div>
-                    </section>
+                    <CheckoutSummary :merchandise-total="cartStore.checkoutSubtotal"
+                        :shipping-cost="cartStore.checkoutDeliveryCost"
+                        :discount-amount="cartStore.checkoutDiscountAmount" :total="cartStore.checkoutTotalPayment"
+                        :ready="Boolean(cartStore.checkoutPreview)" :previewing="cartStore.previewing" :can-recalculate="cartStore.canPreview && !formLocked && !addressNeedsUpdate
+                            " :disabled="!canPlaceOrder" :loading="cartStore.checkingOut" @recalculate="previewOrder"
+                        @place-order="placeOrder" />
                 </div>
-
-                <CheckoutSummary :merchandise-total="merchandiseTotal" :shipping-cost="shippingCost"
-                    :discount-amount="discountAmount" :total="totalPayment" :disabled="!canPlaceOrder"
-                    :loading="cartStore.checkingOut" @place-order="placeOrder" />
-            </div>
+            </template>
         </main>
 
         <AddressBookModal v-model="addressModalOpen" :addresses="addresses"
-            :selected-address-id="cartStore.checkoutForm.shipping_address_id" :saving="cartStore.saving"
-            @confirm="selectAddress" @save-address="saveAddress" />
+            :selected-address-id="cartStore.checkoutForm.shipping_address_id" :edit-address-id="editingAddressId"
+            :saving="cartStore.saving" @confirm="selectAddress" @save-address="saveAddress" />
 
-        <Transition enter-active-class="transition duration-200" enter-from-class="translate-y-3 opacity-0"
-            enter-to-class="translate-y-0 opacity-100" leave-active-class="transition duration-150"
-            leave-from-class="translate-y-0 opacity-100" leave-to-class="translate-y-3 opacity-0">
-            <div v-if="toast"
-                class="fixed bottom-5 left-1/2 z-[120] flex -translate-x-1/2 items-center gap-2 rounded-full px-5 py-3 text-xs font-semibold text-white shadow-2xl"
-                :class="toast.type === 'error' ? 'bg-red-600' : 'bg-[#063f22]'">
-                <Icon :icon="toast.type === 'error' ? 'mdi:alert-circle' : 'mdi:check-circle'"
-                    class="text-lg text-[#ffd326]" />
-
-                {{ toast.message }}
-            </div>
-        </Transition>
+        <div v-if="toast" role="status"
+            class="fixed bottom-5 left-1/2 z-[120] w-max max-w-[92vw] -translate-x-1/2 rounded-2xl px-5 py-3 text-sm text-white shadow-xl"
+            :class="toast.type === 'error' ? 'bg-red-600' : 'bg-[#063f22]'">
+            {{ toast.message }}
+        </div>
     </div>
 </template>

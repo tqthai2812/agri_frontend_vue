@@ -1,8 +1,8 @@
 import { defineStore } from "pinia";
-import { computed, reactive, ref } from "vue";
+import { computed, reactive, ref, watch } from "vue";
 import CartService from "@/services/client/cart.service";
-import CheckoutService from "@/services/checkout.service";
-import ShippingAddressService from "@/services/shippingAddress.service";
+import CheckoutService from "@/services/client/checkout.service";
+import ShippingAddressService from "@/services/client/shippingAddress.service";
 
 export const useCartStore = defineStore("cart", () => {
   const cart = ref(null);
@@ -15,8 +15,10 @@ export const useCartStore = defineStore("cart", () => {
 
   const checkoutPreview = ref(null);
   const createdOrder = ref(null);
+  const checkoutUncertain = ref(false);
 
-  const loading = ref(false);
+  const loadingCount = ref(0);
+  const loading = computed(() => loadingCount.value > 0);
   const saving = ref(false);
   const previewing = ref(false);
   const checkingOut = ref(false);
@@ -27,14 +29,11 @@ export const useCartStore = defineStore("cart", () => {
 
   const checkoutForm = reactive({
     cart_item_ids: [],
-
     shipping_address_id: "",
-
     delivery_id: "",
     discount_code: "",
     payment_method: "COD",
     note: "",
-
     receiver_name: "",
     receiver_phone: "",
     province: "",
@@ -46,130 +45,160 @@ export const useCartStore = defineStore("cart", () => {
     address_detail: "",
   });
 
-  const items = computed(() => {
-    return cart.value?.items || [];
-  });
+  const addressFields = [
+    "receiver_name",
+    "receiver_phone",
+    "province",
+    "district",
+    "ward",
+    "province_id",
+    "district_id",
+    "ward_id",
+    "address_detail",
+  ];
 
-  const subtotal = computed(() => {
-    return Number(cart.value?.subtotal || 0);
-  });
+  const requiredAddressFields = [
+    "receiver_name",
+    "receiver_phone",
+    "province_id",
+    "ward_id",
+    "address_detail",
+  ];
 
-  const totalQuantity = computed(() => {
-    return Number(cart.value?.total_quantity || 0);
-  });
+  let cartRequestVersion = 0;
+  let optionsVersion = 0;
+  let previewVersion = 0;
 
-  const addresses = computed(() => {
-    return checkoutOptions.value.addresses || [];
-  });
+  const addressRevision = ref(0);
 
-  const deliveryMethods = computed(() => {
-    return checkoutOptions.value.delivery_methods || [];
-  });
+  const items = computed(() => cart.value?.items || []);
+  const subtotal = computed(() => Number(cart.value?.subtotal ?? 0));
+  const totalQuantity = computed(() => Number(cart.value?.total_quantity ?? 0));
 
-  const paymentMethods = computed(() => {
-    return checkoutOptions.value.payment_methods || [];
-  });
+  const addresses = computed(() => checkoutOptions.value.addresses || []);
+  const deliveryMethods = computed(
+    () => checkoutOptions.value.delivery_methods || [],
+  );
+  const paymentMethods = computed(
+    () => checkoutOptions.value.payment_methods || [],
+  );
 
   const selectedCheckoutItems = computed(() => {
-    const selectedIds = checkoutForm.cart_item_ids.map(Number);
+    const ids = new Set(normalizeIds(checkoutForm.cart_item_ids));
 
-    return items.value.filter((item) => {
-      return selectedIds.includes(Number(item.id));
-    });
+    return items.value.filter((item) => ids.has(Number(item.id)));
   });
 
   const checkoutSubtotal = computed(() => {
     if (checkoutPreview.value) {
-      return Number(checkoutPreview.value.subtotal || 0);
+      return Number(checkoutPreview.value.subtotal ?? 0);
     }
 
-    return selectedCheckoutItems.value.reduce((sum, item) => {
-      return (
-        sum + Number(item.package?.price || 0) * Number(item.quantity || 0)
-      );
-    }, 0);
-  });
-
-  const checkoutTotalQuantity = computed(() => {
-    if (checkoutPreview.value) {
-      return Number(checkoutPreview.value.total_quantity || 0);
-    }
-
-    return selectedCheckoutItems.value.reduce((sum, item) => {
-      return sum + Number(item.quantity || 0);
-    }, 0);
-  });
-
-  const checkoutDeliveryCost = computed(() => {
-    return Number(checkoutPreview.value?.delivery_cost || 0);
-  });
-
-  const checkoutDiscountAmount = computed(() => {
-    return Number(checkoutPreview.value?.discount_amount || 0);
-  });
-
-  const checkoutTotalPayment = computed(() => {
-    if (checkoutPreview.value) {
-      return Number(checkoutPreview.value.total_payment || 0);
-    }
-
-    return Math.max(
-      checkoutSubtotal.value +
-        checkoutDeliveryCost.value -
-        checkoutDiscountAmount.value,
+    return selectedCheckoutItems.value.reduce(
+      (sum, item) =>
+        sum +
+        Number(item.package?.price ?? item.price ?? 0) *
+          Number(item.quantity ?? 0),
       0,
     );
   });
 
-  const appliedDiscount = computed(() => {
-    return checkoutPreview.value?.discount || null;
-  });
-
-  const selectedAddress = computed(() => {
-    const id = Number(checkoutForm.shipping_address_id);
-
-    if (!id) {
-      return null;
+  const checkoutTotalQuantity = computed(() => {
+    if (checkoutPreview.value) {
+      return Number(checkoutPreview.value.total_quantity ?? 0);
     }
 
-    return (
-      addresses.value.find((address) => {
-        return Number(address.id) === id;
-      }) || null
+    return selectedCheckoutItems.value.reduce(
+      (sum, item) => sum + Number(item.quantity ?? 0),
+      0,
     );
   });
 
-  const selectedDelivery = computed(() => {
-    const id = Number(checkoutForm.delivery_id);
+  // Chưa có preview thì chưa biết phí/tổng thanh toán.
+  const checkoutDeliveryCost = computed(() =>
+    checkoutPreview.value
+      ? Number(checkoutPreview.value.delivery_cost ?? 0)
+      : null,
+  );
 
-    return (
-      deliveryMethods.value.find((method) => {
-        return Number(method.id) === id;
-      }) || null
+  const checkoutDiscountAmount = computed(() =>
+    checkoutPreview.value
+      ? Number(checkoutPreview.value.discount_amount ?? 0)
+      : null,
+  );
+
+  const checkoutTotalPayment = computed(() =>
+    checkoutPreview.value
+      ? Number(checkoutPreview.value.total_payment ?? 0)
+      : null,
+  );
+
+  const appliedDiscount = computed(
+    () => checkoutPreview.value?.discount || null,
+  );
+
+  const selectedAddress = computed(
+    () =>
+      addresses.value.find(
+        (address) =>
+          Number(address.id) === Number(checkoutForm.shipping_address_id),
+      ) || null,
+  );
+
+  const selectedDelivery = computed(
+    () =>
+      deliveryMethods.value.find(
+        (method) => Number(method.id) === Number(checkoutForm.delivery_id),
+      ) || null,
+  );
+
+  const hasCheckoutAddress = computed(() => {
+    if (checkoutForm.shipping_address_id) {
+      const address = selectedAddress.value;
+
+      return Boolean(
+        address &&
+        address.province_id &&
+        address.ward_id &&
+        !String(address.district || "").trim() &&
+        !String(address.district_id || "").trim(),
+      );
+    }
+
+    return requiredAddressFields.every((field) =>
+      String(checkoutForm[field] ?? "").trim(),
     );
   });
+
+  const canPreview = computed(
+    () =>
+      checkoutForm.cart_item_ids.length > 0 &&
+      Boolean(selectedDelivery.value) &&
+      hasCheckoutAddress.value,
+  );
 
   function clearMessages() {
     message.value = "";
     errorMsg.value = "";
 
-    Object.keys(errors).forEach((key) => {
-      delete errors[key];
-    });
+    Object.keys(errors).forEach((key) => delete errors[key]);
   }
 
   function setErrors(error) {
     clearMessages();
 
-    const responseErrors = error.response?.data?.errors || {};
-
-    Object.keys(responseErrors).forEach((key) => {
-      errors[key] = responseErrors[key]?.[0] || "";
-    });
+    Object.entries(error?.response?.data?.errors || {}).forEach(
+      ([key, value]) => {
+        errors[key] = Array.isArray(value)
+          ? value[0] || ""
+          : String(value || "");
+      },
+    );
 
     errorMsg.value =
-      error.response?.data?.message ||
       Object.values(errors)[0] ||
+      error?.response?.data?.message ||
+      error?.message ||
       "Có lỗi xảy ra. Vui lòng thử lại.";
   }
 
@@ -178,21 +207,153 @@ export const useCartStore = defineStore("cart", () => {
   }
 
   function normalizeIds(ids = []) {
-    if (typeof ids === "string") {
-      ids = ids.split(",");
+    const values =
+      typeof ids === "string" ? ids.split(",") : Array.isArray(ids) ? ids : [];
+
+    return [
+      ...new Set(
+        values.map(Number).filter((id) => Number.isSafeInteger(id) && id > 0),
+      ),
+    ];
+  }
+
+  function positiveInteger(value, label) {
+    const number = Number(value);
+
+    if (!Number.isSafeInteger(number) || number < 1) {
+      throw new Error(`${label} phải là số nguyên lớn hơn 0.`);
     }
 
-    return [...new Set(ids.map((id) => Number(id)).filter(Boolean))];
+    return number;
+  }
+
+  function isTrue(value) {
+    return value === true || value === 1 || value === "1";
+  }
+
+  function isFalse(value) {
+    return value === false || value === 0 || value === "0";
+  }
+
+  function sellableQuantity(item) {
+    const raw = item?.available_to_sell ?? item?.package?.available_to_sell;
+
+    if (raw === null || raw === undefined || raw === "") {
+      return null;
+    }
+
+    const value = Number(raw);
+
+    return Number.isSafeInteger(value) && value >= 0 ? value : null;
+  }
+
+  function itemUnavailableReason(item) {
+    const product =
+      item?.package?.variant?.product ||
+      item?.variant?.product ||
+      item?.product;
+
+    if (!item?.package || !product) {
+      return "Sản phẩm không còn tồn tại.";
+    }
+
+    if (isFalse(product.is_show)) {
+      return "Sản phẩm hiện ngừng bán.";
+    }
+
+    const quantity = Number(item.quantity);
+    const stock = sellableQuantity(item);
+
+    if (!Number.isSafeInteger(quantity) || quantity < 1) {
+      return "Số lượng sản phẩm không hợp lệ.";
+    }
+
+    if (stock === null) {
+      return "Chưa xác định được lượng có thể bán. Vui lòng tải lại giỏ.";
+    }
+
+    if (stock === 0) {
+      return "Sản phẩm đã hết hàng.";
+    }
+
+    if (quantity > stock) {
+      return `Chỉ còn ${stock} sản phẩm có thể bán.`;
+    }
+
+    if (isFalse(item.can_checkout)) {
+      return "Sản phẩm hiện chưa thể thanh toán.";
+    }
+
+    return "";
+  }
+
+  function invalidatePreview() {
+    previewVersion++;
+    checkoutPreview.value = null;
+    previewing.value = false;
   }
 
   function setCheckoutItemIds(ids = []) {
-    checkoutForm.cart_item_ids = normalizeIds(ids);
+    const next = normalizeIds(ids);
+
+    if (JSON.stringify(next) !== JSON.stringify(checkoutForm.cart_item_ids)) {
+      checkoutForm.cart_item_ids = next;
+    }
   }
 
-  function resetCheckoutState() {
-    checkoutPreview.value = null;
-    createdOrder.value = null;
+  function buildAddressPayload() {
+    if (checkoutForm.shipping_address_id) {
+      return {
+        shipping_address_id: positiveInteger(
+          checkoutForm.shipping_address_id,
+          "Mã địa chỉ",
+        ),
+      };
+    }
 
+    return {
+      shipping_address_id: null,
+      receiver_name: String(checkoutForm.receiver_name || "").trim(),
+      receiver_phone: String(checkoutForm.receiver_phone || "").trim(),
+      province_id: String(checkoutForm.province_id || "").trim(),
+      ward_id: String(checkoutForm.ward_id || "").trim(),
+      province: String(checkoutForm.province || "").trim(),
+      ward: String(checkoutForm.ward || "").trim(),
+      district: null,
+      district_id: null,
+      address_detail: String(checkoutForm.address_detail || "").trim(),
+    };
+  }
+
+  function buildPreviewPayload(itemIds = null) {
+    return {
+      cart_item_ids: normalizeIds(itemIds ?? checkoutForm.cart_item_ids),
+      delivery_id: checkoutForm.delivery_id,
+      discount_code:
+        String(checkoutForm.discount_code || "")
+          .trim()
+          .toUpperCase() || null,
+      ...buildAddressPayload(),
+    };
+  }
+
+  // Checkout.vue dùng khóa này để lên lịch tính lại.
+  const previewKey = computed(() =>
+    JSON.stringify({
+      ids: checkoutForm.cart_item_ids,
+      delivery_id: checkoutForm.delivery_id,
+      discount_code: checkoutForm.discount_code,
+      shipping_address_id: checkoutForm.shipping_address_id,
+      address: addressFields.map((field) => checkoutForm[field]),
+      addressRevision: addressRevision.value,
+    }),
+  );
+
+  watch(previewKey, invalidatePreview, { flush: "sync" });
+
+  function resetCheckoutState() {
+    invalidatePreview();
+    createdOrder.value = null;
     checkoutForm.cart_item_ids = [];
     checkoutForm.discount_code = "";
     checkoutForm.note = "";
@@ -200,108 +361,99 @@ export const useCartStore = defineStore("cart", () => {
   }
 
   function applyAddressToForm(address) {
-    if (!address) {
-      checkoutForm.shipping_address_id = "";
-      checkoutForm.receiver_name = "";
-      checkoutForm.receiver_phone = "";
-      checkoutForm.province = "";
-      checkoutForm.district = "";
-      checkoutForm.ward = "";
-      checkoutForm.province_id = "";
-      checkoutForm.district_id = "";
-      checkoutForm.ward_id = "";
-      checkoutForm.address_detail = "";
-      return;
-    }
+    checkoutForm.shipping_address_id = address?.id ?? "";
 
-    checkoutForm.shipping_address_id = address.id;
-
-    checkoutForm.receiver_name = address.receiver_name || "";
-    checkoutForm.receiver_phone = address.receiver_phone || "";
-    checkoutForm.province = address.province || "";
-    checkoutForm.district = address.district || "";
-    checkoutForm.ward = address.ward || "";
-    checkoutForm.province_id = address.province_id || "";
-    checkoutForm.district_id = address.district_id || "";
-    checkoutForm.ward_id = address.ward_id || "";
-    checkoutForm.address_detail = address.address_detail || "";
+    addressFields.forEach((field) => {
+      checkoutForm[field] = address?.[field] ?? "";
+    });
   }
 
   function selectAddress(addressId) {
-    const address = addresses.value.find((item) => {
-      return Number(item.id) === Number(addressId);
-    });
-
-    applyAddressToForm(address || null);
+    applyAddressToForm(
+      addresses.value.find((item) => Number(item.id) === Number(addressId)) ||
+        null,
+    );
   }
 
   function selectDefaultAddress() {
-    const defaultAddress =
-      addresses.value.find((item) => item.is_default) ||
-      addresses.value[0] ||
-      null;
+    applyAddressToForm(
+      addresses.value.find((item) => isTrue(item.is_default)) ||
+        addresses.value[0] ||
+        null,
+    );
+  }
 
-    applyAddressToForm(defaultAddress);
+  function refreshSelectedAddress() {
+    const current = addresses.value.find(
+      (item) => Number(item.id) === Number(checkoutForm.shipping_address_id),
+    );
+
+    if (current) {
+      applyAddressToForm(current);
+    } else {
+      selectDefaultAddress();
+    }
+
+    addressRevision.value++;
   }
 
   function selectDefaultDelivery() {
-    if (checkoutForm.delivery_id) {
+    if (
+      deliveryMethods.value.some(
+        (item) => Number(item.id) === Number(checkoutForm.delivery_id),
+      )
+    ) {
       return;
     }
 
-    const defaultDelivery =
-      deliveryMethods.value.find((item) => item.is_default) ||
-      deliveryMethods.value[0] ||
-      null;
+    const method =
+      deliveryMethods.value.find((item) => isTrue(item.is_default)) ||
+      deliveryMethods.value[0];
 
-    checkoutForm.delivery_id = defaultDelivery?.id || "";
+    checkoutForm.delivery_id = method?.id ?? "";
   }
 
-  function normalizeAddToCartPayload(input, quantity = 1) {
-    if (input && typeof input === "object" && !Array.isArray(input)) {
-      return {
-        package_id: Number(input.package_id),
-        quantity: Number(input.quantity || quantity || 1),
-      };
-    }
+  function acceptCart(response) {
+    cart.value = response.data?.data || null;
+    invalidatePreview();
 
-    return {
-      package_id: Number(input),
-      quantity: Number(quantity || 1),
-    };
+    const validIds = new Set(items.value.map((item) => Number(item.id)));
+
+    setCheckoutItemIds(
+      checkoutForm.cart_item_ids.filter((id) => validIds.has(Number(id))),
+    );
   }
 
-  async function fetchCart() {
-    loading.value = true;
-    clearMessages();
+  async function fetchCart({ preserveMessages = false } = {}) {
+    const version = ++cartRequestVersion;
+    loadingCount.value++;
+
+    if (!preserveMessages) clearMessages();
 
     try {
       const response = await CartService.getCart();
 
-      cart.value = response.data?.data || null;
+      if (version === cartRequestVersion) acceptCart(response);
 
       return response;
     } catch (error) {
-      setErrors(error);
+      if (version === cartRequestVersion) setErrors(error);
       throw error;
     } finally {
-      loading.value = false;
+      loadingCount.value--;
     }
   }
 
-  async function addToCart(input, quantity = 1) {
+  async function withSaving(action) {
+    if (saving.value || checkingOut.value) {
+      throw new Error("Đang xử lý yêu cầu trước. Vui lòng chờ.");
+    }
+
     saving.value = true;
     clearMessages();
 
     try {
-      const payload = normalizeAddToCartPayload(input, quantity);
-
-      const response = await CartService.addItem(payload);
-
-      cart.value = response.data?.data || null;
-      message.value = response.data?.message || "Thêm vào giỏ hàng thành công.";
-
-      return response;
+      return await action();
     } catch (error) {
       setErrors(error);
       throw error;
@@ -310,108 +462,105 @@ export const useCartStore = defineStore("cart", () => {
     }
   }
 
-  async function updateItem(itemId, quantity) {
-    saving.value = true;
-    clearMessages();
+  async function mutateCart(request, successMessage) {
+    return withSaving(async () => {
+      cartRequestVersion++;
+      invalidatePreview();
 
-    try {
-      const response = await CartService.updateItem(itemId, {
-        quantity: Number(quantity),
-      });
+      const response = await request();
 
-      cart.value = response.data?.data || null;
-      message.value = response.data?.message || "Cập nhật giỏ hàng thành công.";
+      cartRequestVersion++;
+      acceptCart(response);
+
+      message.value = response.data?.message || successMessage;
 
       return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
+    });
   }
 
-  async function removeItem(itemId) {
-    saving.value = true;
-    clearMessages();
+  function normalizeAddToCartPayload(input, quantity = 1) {
+    const objectInput =
+      input && typeof input === "object" && !Array.isArray(input);
 
-    try {
-      const response = await CartService.removeItem(itemId);
+    return {
+      package_id: positiveInteger(
+        objectInput ? input.package_id : input,
+        "Mã quy cách",
+      ),
+      quantity: positiveInteger(
+        objectInput ? (input.quantity ?? quantity) : quantity,
+        "Số lượng",
+      ),
+    };
+  }
 
-      cart.value = response.data?.data || null;
-      message.value = response.data?.message || "Xóa sản phẩm thành công.";
+  function addToCart(input, quantity = 1) {
+    return mutateCart(
+      () => CartService.addItem(normalizeAddToCartPayload(input, quantity)),
+      "Thêm vào giỏ hàng thành công.",
+    );
+  }
 
-      checkoutForm.cart_item_ids = checkoutForm.cart_item_ids.filter((id) => {
-        return Number(id) !== Number(itemId);
-      });
+  function updateItem(itemId, quantity) {
+    return mutateCart(
+      () =>
+        CartService.updateItem(positiveInteger(itemId, "Mã dòng giỏ hàng"), {
+          quantity: positiveInteger(quantity, "Số lượng"),
+        }),
+      "Cập nhật giỏ hàng thành công.",
+    );
+  }
 
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
+  function removeItem(itemId) {
+    return mutateCart(
+      () => CartService.removeItem(positiveInteger(itemId, "Mã dòng giỏ hàng")),
+      "Xóa sản phẩm thành công.",
+    );
   }
 
   async function clearCart() {
-    saving.value = true;
-    clearMessages();
+    const response = await mutateCart(
+      () => CartService.clearCart(),
+      "Đã xóa giỏ hàng.",
+    );
 
-    try {
-      const response = await CartService.clearCart();
+    setCheckoutItemIds([]);
 
-      cart.value = response.data?.data || null;
-      checkoutPreview.value = null;
-      checkoutForm.cart_item_ids = [];
-
-      message.value = response.data?.message || "Đã xóa giỏ hàng.";
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
+    return response;
   }
 
   async function fetchCheckoutOptions() {
-    clearMessages();
+    const version = ++optionsVersion;
 
     try {
       const response = await CheckoutService.getOptions();
 
+      if (version !== optionsVersion) return response;
+
+      const data = response.data?.data || {};
+
       checkoutOptions.value = {
-        addresses: response.data?.data?.addresses || [],
-        delivery_methods: response.data?.data?.delivery_methods || [],
-        payment_methods: response.data?.data?.payment_methods || [],
+        addresses: data.addresses || [],
+        delivery_methods: data.delivery_methods || [],
+        payment_methods: data.payment_methods || [],
       };
 
       selectDefaultDelivery();
-
-      if (!checkoutForm.shipping_address_id) {
-        selectDefaultAddress();
-      }
+      refreshSelectedAddress();
 
       return response;
     } catch (error) {
-      setErrors(error);
+      if (version === optionsVersion) setErrors(error);
       throw error;
     }
   }
 
   async function fetchAddresses() {
-    clearMessages();
-
     try {
       const response = await ShippingAddressService.getAddresses();
 
       checkoutOptions.value.addresses = response.data?.data || [];
-
-      if (!checkoutForm.shipping_address_id) {
-        selectDefaultAddress();
-      }
+      refreshSelectedAddress();
 
       return response;
     } catch (error) {
@@ -420,206 +569,247 @@ export const useCartStore = defineStore("cart", () => {
     }
   }
 
-  async function saveAddress(payload) {
-    saving.value = true;
-    clearMessages();
+  async function refreshAddressesAfterWrite(response, selectedId, fallback) {
+    const successMessage = response.data?.message || fallback;
+    const saved = response.data?.data;
+
+    // Dùng ngay bản ghi API trả về nếu có đầy đủ dữ liệu.
+    if (saved?.id && saved.receiver_name) {
+      const list = addresses.value.filter(
+        (item) => Number(item.id) !== Number(saved.id),
+      );
+
+      checkoutOptions.value.addresses = [...list, saved];
+      applyAddressToForm(saved);
+      addressRevision.value++;
+    }
 
     try {
+      await fetchAddresses();
+
+      if (
+        selectedId != null &&
+        addresses.value.some((item) => Number(item.id) === Number(selectedId))
+      ) {
+        selectAddress(selectedId);
+      }
+
+      message.value = successMessage;
+    } catch {
+      message.value = successMessage;
+      errorMsg.value =
+        "Đã lưu thay đổi nhưng chưa tải lại được danh sách địa chỉ. Vui lòng tải lại để kiểm tra.";
+    }
+
+    return response;
+  }
+
+  function saveAddress(payload) {
+    return withSaving(async () => {
       const response = payload.id
         ? await ShippingAddressService.update(payload.id, payload)
         : await ShippingAddressService.create(payload);
 
-      await fetchAddresses();
-
-      const savedAddress = response.data?.data || null;
-
-      if (savedAddress) {
-        selectAddress(savedAddress.id);
-      }
-
-      message.value = response.data?.message || "Lưu địa chỉ thành công.";
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
+      return refreshAddressesAfterWrite(
+        response,
+        response.data?.data?.id ?? payload.id ?? null,
+        "Lưu địa chỉ thành công.",
+      );
+    });
   }
 
-  async function removeAddress(addressId) {
-    saving.value = true;
-    clearMessages();
-
-    try {
+  function removeAddress(addressId) {
+    return withSaving(async () => {
       const response = await ShippingAddressService.remove(addressId);
 
-      await fetchAddresses();
+      checkoutOptions.value.addresses = addresses.value.filter(
+        (item) => Number(item.id) !== Number(addressId),
+      );
 
-      if (Number(checkoutForm.shipping_address_id) === Number(addressId)) {
-        selectDefaultAddress();
-      }
+      refreshSelectedAddress();
 
-      message.value = response.data?.message || "Xóa địa chỉ thành công.";
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
+      return refreshAddressesAfterWrite(
+        response,
+        null,
+        "Xóa địa chỉ thành công.",
+      );
+    });
   }
 
-  async function setDefaultAddress(addressId) {
-    saving.value = true;
-    clearMessages();
-
-    try {
+  function setDefaultAddress(addressId) {
+    return withSaving(async () => {
       const response = await ShippingAddressService.setDefault(addressId);
 
-      await fetchAddresses();
-      selectAddress(addressId);
-
-      message.value = response.data?.message || "Đã đặt địa chỉ mặc định.";
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      saving.value = false;
-    }
-  }
-
-  function buildPreviewPayload(itemIds = null) {
-    const ids = normalizeIds(itemIds || checkoutForm.cart_item_ids);
-
-    return {
-      cart_item_ids: ids,
-      delivery_id: checkoutForm.delivery_id,
-      discount_code: checkoutForm.discount_code || null,
-    };
+      return refreshAddressesAfterWrite(
+        response,
+        addressId,
+        "Đã đặt địa chỉ mặc định.",
+      );
+    });
   }
 
   async function previewCheckout(itemIds = null) {
+    if (checkingOut.value || saving.value) {
+      throw new Error("Đang cập nhật dữ liệu. Vui lòng chờ.");
+    }
+
+    if (itemIds !== null) setCheckoutItemIds(itemIds);
+
+    const version = ++previewVersion;
+    const key = previewKey.value;
+
     previewing.value = true;
+    checkoutPreview.value = null;
     clearMessages();
 
     try {
-      const payload = buildPreviewPayload(itemIds);
-
-      if (!payload.cart_item_ids.length) {
+      if (!checkoutForm.cart_item_ids.length) {
         throw new Error("Vui lòng chọn sản phẩm cần thanh toán.");
       }
 
-      const response = await CheckoutService.preview(payload);
+      if (!hasCheckoutAddress.value) {
+        throw new Error("Vui lòng chọn hoặc nhập đầy đủ địa chỉ nhận hàng.");
+      }
 
-      checkoutPreview.value = response.data?.data || null;
+      if (!selectedDelivery.value) {
+        throw new Error("Vui lòng chọn phương thức giao hàng.");
+      }
+
+      const response = await CheckoutService.preview(buildPreviewPayload());
+
+      if (version !== previewVersion || key !== previewKey.value) {
+        return null;
+      }
+
+      const data = response.data?.data;
+
+      if (!data || !Number.isFinite(Number(data.total_payment))) {
+        throw new Error("Dữ liệu tính tiền không hợp lệ. Vui lòng thử lại.");
+      }
+
+      checkoutPreview.value = data;
 
       return response;
     } catch (error) {
-      checkoutPreview.value = null;
-
-      if (error.response) {
-        setErrors(error);
-      } else {
-        errorMsg.value = error.message || "Không tính được đơn hàng.";
+      if (version !== previewVersion || key !== previewKey.value) {
+        return null;
       }
 
+      checkoutPreview.value = null;
+      setErrors(error);
       throw error;
     } finally {
-      previewing.value = false;
+      if (version === previewVersion) previewing.value = false;
     }
   }
 
   function buildCheckoutPayload(itemIds = null) {
-    const ids = normalizeIds(itemIds || checkoutForm.cart_item_ids);
-
-    const payload = {
-      cart_item_ids: ids,
-
-      shipping_address_id: checkoutForm.shipping_address_id || null,
-
-      delivery_id: checkoutForm.delivery_id,
-      discount_code: checkoutForm.discount_code || null,
-      payment_method: checkoutForm.payment_method || "COD",
-      note: checkoutForm.note || null,
+    return {
+      ...buildPreviewPayload(itemIds),
+      payment_method: checkoutForm.payment_method,
+      note: String(checkoutForm.note || "").trim() || null,
     };
-
-    if (!payload.shipping_address_id) {
-      payload.receiver_name = checkoutForm.receiver_name;
-      payload.receiver_phone = checkoutForm.receiver_phone;
-      payload.province = checkoutForm.province;
-      payload.district = checkoutForm.district;
-      payload.ward = checkoutForm.ward;
-      payload.province_id = checkoutForm.province_id || null;
-      payload.district_id = checkoutForm.district_id || null;
-      payload.ward_id = checkoutForm.ward_id || null;
-      payload.address_detail = checkoutForm.address_detail;
-    }
-
-    return payload;
   }
 
   async function checkout(itemIds = null) {
+    if (checkingOut.value || saving.value || previewing.value) {
+      throw new Error("Đang xử lý yêu cầu. Vui lòng chờ.");
+    }
+
+    if (checkoutUncertain.value) {
+      throw new Error(
+        "Yêu cầu trước chưa rõ kết quả. Hãy kiểm tra Đơn mua trước khi đặt lại.",
+      );
+    }
+
+    if (itemIds !== null) setCheckoutItemIds(itemIds);
+
+    if (!checkoutPreview.value || !canPreview.value) {
+      throw new Error("Vui lòng tính lại đơn hàng trước khi đặt.");
+    }
+
+    if (checkoutForm.payment_method !== "COD") {
+      throw new Error("Thanh toán trực tuyến chưa được hỗ trợ.");
+    }
+
+    const payload = buildCheckoutPayload();
+
     checkingOut.value = true;
+    createdOrder.value = null;
     clearMessages();
 
     try {
-      const payload = buildCheckoutPayload(itemIds);
+      let response;
 
-      if (!payload.cart_item_ids.length) {
-        throw new Error("Vui lòng chọn sản phẩm cần thanh toán.");
+      try {
+        response = await CheckoutService.checkout(payload);
+      } catch (error) {
+        const status = Number(error?.response?.status || 0);
+
+        // Không tự gửi lại POST khi chưa biết server đã tạo đơn hay chưa.
+        if (!status || status >= 500 || status === 408) {
+          checkoutUncertain.value = true;
+          errorMsg.value =
+            "Chưa xác nhận được kết quả đặt hàng. Hãy kiểm tra Đơn mua; không gửi lại ngay.";
+        } else {
+          setErrors(error);
+        }
+
+        invalidatePreview();
+        throw error;
       }
-
-      const response = await CheckoutService.checkout(payload);
 
       createdOrder.value = response.data?.data?.order || null;
-      message.value = response.data?.message || "Đặt hàng thành công.";
+      const successMessage = response.data?.message || "Đặt hàng thành công.";
 
-      await fetchCart();
+      setCheckoutItemIds([]);
+      checkoutForm.discount_code = "";
+      checkoutForm.note = "";
+      invalidatePreview();
 
-      checkoutPreview.value = null;
-      checkoutForm.cart_item_ids = [];
-
-      return response;
-    } catch (error) {
-      if (error.response) {
-        setErrors(error);
-      } else {
-        errorMsg.value = error.message || "Không đặt được đơn hàng.";
+      try {
+        await fetchCart({ preserveMessages: true });
+        message.value = successMessage;
+      } catch {
+        message.value = successMessage;
+        errorMsg.value =
+          "Đơn hàng đã được tạo nhưng chưa tải lại được giỏ hàng. Hãy xem Đơn mua; không đặt lại.";
       }
 
-      throw error;
+      return response;
     } finally {
       checkingOut.value = false;
     }
   }
 
+  // Chỉ tải dữ liệu. Checkout.vue quyết định thời điểm gọi preview.
   async function loadCheckoutData(itemIds = []) {
-    loading.value = true;
+    loadingCount.value++;
     clearMessages();
+    invalidatePreview();
+
+    const requested = normalizeIds(itemIds);
 
     try {
-      setCheckoutItemIds(itemIds);
+      const results = await Promise.allSettled([
+        fetchCart({ preserveMessages: true }),
+        fetchCheckoutOptions(),
+      ]);
 
-      await Promise.all([fetchCart(), fetchCheckoutOptions()]);
+      const failed = results.find((result) => result.status === "rejected");
+      if (failed) throw failed.reason;
 
-      const validIds = items.value
-        .filter((item) => {
-          return checkoutForm.cart_item_ids.includes(Number(item.id));
-        })
-        .map((item) => Number(item.id));
+      const validIds = new Set(items.value.map((item) => Number(item.id)));
+      const remaining = requested.filter((id) => validIds.has(id));
 
-      setCheckoutItemIds(validIds);
+      setCheckoutItemIds(remaining);
+      checkoutForm.payment_method = "COD";
 
-      if (checkoutForm.cart_item_ids.length > 0 && checkoutForm.delivery_id) {
-        await previewCheckout();
-      }
+      return {
+        missingItemIds: requested.filter((id) => !validIds.has(id)),
+      };
     } finally {
-      loading.value = false;
+      loadingCount.value--;
     }
   }
 
@@ -628,16 +818,14 @@ export const useCartStore = defineStore("cart", () => {
     items,
     subtotal,
     totalQuantity,
-
     checkoutOptions,
     addresses,
     deliveryMethods,
     paymentMethods,
-
     checkoutPreview,
     createdOrder,
+    checkoutUncertain,
     checkoutForm,
-
     selectedCheckoutItems,
     checkoutSubtotal,
     checkoutTotalQuantity,
@@ -647,41 +835,39 @@ export const useCartStore = defineStore("cart", () => {
     appliedDiscount,
     selectedAddress,
     selectedDelivery,
-
+    hasCheckoutAddress,
+    canPreview,
+    previewKey,
     loading,
     saving,
     previewing,
     checkingOut,
-
     message,
     errorMsg,
     errors,
-
     clearMessages,
     setErrors,
     fieldError,
-
     normalizeIds,
+    sellableQuantity,
+    itemUnavailableReason,
+    invalidatePreview,
     setCheckoutItemIds,
     resetCheckoutState,
-
     applyAddressToForm,
     selectAddress,
     selectDefaultAddress,
     selectDefaultDelivery,
-
     fetchCart,
     addToCart,
     updateItem,
     removeItem,
     clearCart,
-
     fetchCheckoutOptions,
     fetchAddresses,
     saveAddress,
     removeAddress,
     setDefaultAddress,
-
     buildPreviewPayload,
     previewCheckout,
     buildCheckoutPayload,

@@ -1,232 +1,115 @@
-<template>
-    <div class="fixed inset-0 bg-bg flex items-center justify-center z-50 px-4">
-        <div
-            class="w-full max-w-5xl grid grid-cols-1 lg:grid-cols-2 bg-surface rounded-3xl shadow-xl border border-border overflow-hidden">
-            <!-- Left -->
-            <div class="hidden lg:flex flex-col justify-between bg-primary p-10 text-white">
-                <div>
-                    <div class="w-14 h-14 rounded-2xl bg-white/15 flex items-center justify-center mb-6">
-                        <Icon icon="solar:t-shirt-bold" class="text-3xl" />
-                    </div>
-
-                    <h1 class="text-3xl font-bold mb-3">
-                        EVDesign Admin
-                    </h1>
-
-                    <p class="text-white/80 leading-relaxed">
-                        Đăng nhập để quản lý sản phẩm, danh mục, đơn hàng, tồn kho và nội dung hệ thống.
-                    </p>
-                </div>
-
-                <div class="space-y-4">
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                            <Icon icon="solar:shield-check-bold-duotone" class="text-2xl" />
-                        </div>
-                        <div>
-                            <h3 class="font-semibold">Bảo mật với Laravel Sanctum</h3>
-                            <p class="text-sm text-white/70">Đăng nhập bằng session cookie an toàn.</p>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center gap-3">
-                        <div class="w-10 h-10 rounded-xl bg-white/15 flex items-center justify-center">
-                            <Icon icon="solar:chart-2-bold-duotone" class="text-2xl" />
-                        </div>
-                        <div>
-                            <h3 class="font-semibold">Quản trị tập trung</h3>
-                            <p class="text-sm text-white/70">Theo dõi dữ liệu trong dashboard.</p>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Right -->
-            <div class="p-6 sm:p-10">
-                <div class="mb-8">
-                    <div
-                        class="lg:hidden w-12 h-12 rounded-2xl bg-primary flex items-center justify-center mb-5 text-white">
-                        <Icon icon="solar:t-shirt-bold" class="text-2xl" />
-                    </div>
-
-                    <h2 class="text-2xl font-bold text-text">
-                        Đăng nhập
-                    </h2>
-
-                    <p class="text-sm text-text-light mt-1">
-                        Sử dụng tài khoản admin hoặc người dùng để tiếp tục.
-                    </p>
-                </div>
-
-                <form @submit.prevent="handleLogin" class="space-y-5">
-                    <div v-if="errorMsg"
-                        class="flex items-start gap-3 rounded-2xl bg-red-50 border border-red-100 px-4 py-3 text-red-600 text-sm">
-                        <Icon icon="solar:danger-circle-bold-duotone" class="text-xl shrink-0 mt-0.5" />
-                        <span>{{ errorMsg }}</span>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Email</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:letter-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model.trim="email" type="email" class="form-control !pl-[40px]"
-                                placeholder="Nhập email" autocomplete="email" />
-                        </div>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">Mật khẩu</label>
-
-                        <div class="relative">
-                            <Icon icon="solar:lock-password-bold-duotone"
-                                class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-text-light" />
-
-                            <input v-model="password" :type="showPassword ? 'text' : 'password'"
-                                class="form-control !pl-[40px] !pr-12" placeholder="Nhập mật khẩu"
-                                autocomplete="current-password" />
-
-                            <button type="button"
-                                class="absolute right-4 top-1/2 -translate-y-1/2 text-text-light hover:text-primary transition"
-                                @click="showPassword = !showPassword">
-                                <Icon :icon="showPassword ? 'solar:eye-closed-bold-duotone' : 'solar:eye-bold-duotone'"
-                                    class="text-xl" />
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="flex items-center justify-between gap-3">
-                        <label class="flex items-center gap-2 text-sm text-text-sec cursor-pointer">
-                            <input v-model="remember" type="checkbox" class="w-4 h-4 accent-primary" />
-                            Ghi nhớ đăng nhập
-                        </label>
-
-                        <RouterLink to="/forgot-password" class="text-sm font-medium text-primary hover:underline">
-                            Quên mật khẩu?
-                        </RouterLink>
-                    </div>
-
-                    <button type="submit"
-                        class="btn-primary w-full justify-center py-3 rounded-xl disabled:opacity-60 disabled:cursor-not-allowed"
-                        :disabled="authStore.loading">
-                        <Icon v-if="!authStore.loading" icon="solar:login-3-bold-duotone" class="text-xl" />
-
-                        <Icon v-else icon="solar:refresh-bold" class="text-xl animate-spin" />
-
-                        {{ authStore.loading ? "Đang xử lý..." : "Đăng nhập" }}
-                    </button>
-                </form>
-
-                <!-- Breeze actions -->
-                <div class="mt-7">
-                    <div class="flex items-center gap-3 mb-5">
-                        <div class="h-px bg-border flex-1"></div>
-                        <span class="text-xs uppercase tracking-wide text-text-light">
-                            Tác vụ khác
-                        </span>
-                        <div class="h-px bg-border flex-1"></div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <RouterLink to="/register"
-                            class="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-sec hover:bg-primary/10 hover:text-primary transition">
-                            <Icon icon="solar:user-plus-bold-duotone" class="text-xl" />
-                            Đăng ký
-                        </RouterLink>
-
-                        <RouterLink to="/forgot-password"
-                            class="flex items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium text-text-sec hover:bg-primary/10 hover:text-primary transition">
-                            <Icon icon="solar:key-bold-duotone" class="text-xl" />
-                            Quên mật khẩu
-                        </RouterLink>
-                    </div>
-                </div>
-
-                <p class="text-center text-xs text-text-light mt-8">
-                    © 2026 EVDesign. Admin Dashboard.
-                </p>
-            </div>
-        </div>
-    </div>
-</template>
-
 <script setup>
 import { ref } from "vue";
-import { useRouter, useRoute, RouterLink } from "vue-router";
-import { Icon } from "@iconify/vue";
+import { RouterLink, useRoute, useRouter } from "vue-router";
 import { useAuthStore } from "@/stores/shared/authStore";
+import AuthLayout from "@/components/auth/AuthLayout.vue";
+import AuthField from "@/components/auth/AuthField.vue";
+import { authError, loginDestination } from "./authUi";
 
 const authStore = useAuthStore();
-const router = useRouter();
 const route = useRoute();
+const router = useRouter();
 
 const email = ref("");
 const password = ref("");
 const remember = ref(false);
-const showPassword = ref(false);
+const busy = ref(false);
 const errorMsg = ref("");
+const errors = ref({});
 
 async function handleLogin() {
+    if (busy.value) return;
+
+    busy.value = true;
     errorMsg.value = "";
+    errors.value = {};
 
     try {
         await authStore.login(
-            email.value,
+            email.value.trim().toLowerCase(),
             password.value,
             remember.value,
         );
 
-        const redirect =
-            typeof route.query.redirect === "string"
-                ? route.query.redirect
-                : null;
+        await router.replace(
+            loginDestination(
+                route.query.redirect,
+                authStore,
+                router,
+            ),
+        );
+    } catch (error) {
+        errors.value = error.response?.data?.errors || {};
 
-        // Nếu người dùng bị đưa tới login từ một trang khác
-        if (redirect) {
-            await router.push(redirect);
-            return;
-        }
-
-        // Trang mặc định theo quyền
-        if (authStore.hasPermission("dashboard.view")) {
-            await router.push({
-                name: "admin-dashboard",
-            });
-            return;
-        }
-
-        if (authStore.hasPermission("product.view")) {
-            await router.push({
-                name: "admin-products",
-            });
-            return;
-        }
-
-        if (authStore.hasPermission("category.view")) {
-            await router.push({
-                name: "admin-categories",
-            });
-            return;
-        }
-
-        if (authStore.hasPermission("role.view")) {
-            await router.push({
-                name: "admin-roles",
-            });
-            return;
-        }
-
-        // Người dùng thường
-        await router.push({
-            name: "profile",
-        });
-    } catch (err) {
-        errorMsg.value =
-            err.response?.data?.message ||
-            err.response?.data?.errors?.email?.[0] ||
-            "Sai email hoặc mật khẩu";
+        errorMsg.value = authError(
+            error,
+            "Không thể đăng nhập. Vui lòng kiểm tra lại thông tin.",
+        );
+    } finally {
+        busy.value = false;
     }
 }
 </script>
+
+<template>
+    <AuthLayout title="Đăng nhập">
+        <p class="nf-kicker">
+            CHÀO MỪNG BẠN TRỞ LẠI
+        </p>
+
+        <h1>Đăng nhập</h1>
+
+        <p class="nf-intro">
+            Tiếp tục mua sắm và theo dõi đơn hàng của bạn tại NFarmHouse.
+        </p>
+
+        <p v-if="route.query.reset === 'success'" class="nf-alert nf-alert-success" role="status">
+            Đã đặt lại mật khẩu. Bạn có thể đăng nhập bằng mật khẩu mới.
+        </p>
+
+        <p v-if="errorMsg" class="nf-alert" role="alert">
+            {{ errorMsg }}
+        </p>
+
+        <form class="nf-form" :aria-busy="busy" @submit.prevent="handleLogin">
+            <AuthField id="login-email" v-model="email" label="Email" type="email" placeholder="Nhập email của bạn"
+                autocomplete="email" :disabled="busy" :error="errors.email?.[0]" />
+
+            <AuthField id="login-password" v-model="password" label="Mật khẩu" type="password"
+                placeholder="Nhập mật khẩu" autocomplete="current-password" :disabled="busy"
+                :error="errors.password?.[0]" />
+
+            <div class="nf-row">
+                <label class="nf-check">
+                    <input v-model="remember" type="checkbox" :disabled="busy" />
+
+                    Ghi nhớ đăng nhập
+                </label>
+
+                <RouterLink to="/forgot-password" class="nf-link">
+                    Quên mật khẩu?
+                </RouterLink>
+            </div>
+
+            <button type="submit" class="nf-button nf-primary" :disabled="busy">
+                <span>
+                    {{ busy ? "Đang đăng nhập..." : "Đăng nhập" }}
+                </span>
+
+                <span v-if="busy" class="nf-spinner"></span>
+
+                <span v-else class="nf-button-arrow">
+                    ›
+                </span>
+            </button>
+        </form>
+
+        <p class="nf-switch">
+            Bạn mới đến NFarmHouse?
+
+            <RouterLink to="/register" class="nf-link">
+                Đăng ký ngay
+            </RouterLink>
+        </p>
+    </AuthLayout>
+</template>

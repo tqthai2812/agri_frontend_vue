@@ -5,7 +5,7 @@ import ClientNavbar from "./header/ClientNavbar.vue";
 import ClientMobileMenu from "./header/ClientMobileMenu.vue";
 import SearchPanel from "./header/SearchPanel.vue";
 
-import ClientProductService from "@/services/clientProduct.service";
+import ClientProductService from "@/services/client/clientProduct.service";
 import { useAuthStore } from "@/stores/shared/authStore";
 import { useCartStore } from "@/stores/client/cartStore";
 

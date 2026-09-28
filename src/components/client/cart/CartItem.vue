@@ -1,22 +1,12 @@
 <script setup>
 import { computed } from "vue";
 import { Icon } from "@iconify/vue";
+import { useCartStore } from "@/stores/client/cartStore";
 
 const props = defineProps({
-    item: {
-        type: Object,
-        required: true,
-    },
-
-    selected: {
-        type: Boolean,
-        default: false,
-    },
-
-    disabled: {
-        type: Boolean,
-        default: false,
-    },
+    item: { type: Object, required: true },
+    selected: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
 });
 
 const emit = defineEmits([
@@ -26,140 +16,111 @@ const emit = defineEmits([
     "move-wishlist",
 ]);
 
-const packageData = computed(() => {
-    return props.item.package || {};
-});
+const cartStore = useCartStore();
 
-const variant = computed(() => {
-    return packageData.value.variant || props.item.variant || {};
-});
+const packageData = computed(() => props.item.package || {});
+const variant = computed(() => packageData.value.variant || props.item.variant || {});
+const product = computed(() => variant.value.product || props.item.product || {});
 
-const product = computed(() => {
-    return (
-        variant.value.product ||
-        props.item.product ||
-        {}
-    );
-});
+const productLink = computed(() =>
+    product.value.id
+        ? { name: "client-product-detail", params: { id: product.value.id } }
+        : { name: "client-products" },
+);
 
 const primaryImage = computed(() => {
     const images = product.value.images || [];
-    const primary = images.find((image) => Boolean(image.is_primary));
-
-    return (
-        primary?.image_url ||
-        images[0]?.image_url ||
-        product.value.primary_image ||
-        "https://images.unsplash.com/photo-1589923188900-85dae523342b?auto=format&fit=crop&w=600&q=80"
+    const primary = images.find(
+        (image) =>
+            image.is_primary === true ||
+            image.is_primary === 1 ||
+            image.is_primary === "1",
     );
+
+    return product.value.primary_image || primary?.image_url || images[0]?.image_url || "";
 });
 
-const stock = computed(() => {
-    return Number(packageData.value.quantity_available || 0);
-});
+const stock = computed(() => cartStore.sellableQuantity(props.item));
+const unavailableReason = computed(() => cartStore.itemUnavailableReason(props.item));
+const quantity = computed(() => Number(props.item.quantity || 1));
+const price = computed(() => Number(packageData.value.price ?? props.item.price ?? 0));
+const lineTotal = computed(() => price.value * quantity.value);
+const maxQuantity = computed(() => Math.min(stock.value ?? 0, 999));
 
-const quantity = computed(() => {
-    return Number(props.item.quantity || 1);
-});
+const productName = computed(
+    () => product.value.product_name || product.value.name || "Sản phẩm không còn tồn tại",
+);
 
-const price = computed(() => {
-    return Number(packageData.value.price || props.item.price || 0);
-});
+const editableQuantity = computed(() => {
+    const shown = product.value.is_show;
 
-const lineTotal = computed(() => {
-    return price.value * quantity.value;
-});
-
-const productName = computed(() => {
     return (
-        product.value.product_name ||
-        product.value.name ||
-        "Sản phẩm"
+        !props.disabled &&
+        Boolean(props.item.package) &&
+        Boolean(product.value.id) &&
+        shown !== false &&
+        shown !== 0 &&
+        shown !== "0" &&
+        maxQuantity.value > 0
     );
 });
 
 const packageLabel = computed(() => {
-    const size = packageData.value.size;
+    const units = { kg: "kg", g: "g", ml: "ml", l: "lít", piece: "cái" };
 
-    const unitMap = {
-        kg: "kg",
-        g: "g",
-        ml: "ml",
-        l: "lít",
-        piece: "cái",
-    };
-
-    if (!size) {
-        return variant.value.variant_name || variant.value.name || "Mặc định";
-    }
-
-    return `${size} ${unitMap[packageData.value.unit] ||
-        packageData.value.unit ||
-        ""
-        }`.trim();
+    return `${packageData.value.size ?? ""} ${units[packageData.value.unit] || packageData.value.unit || ""
+        }`.trim() || "Mặc định";
 });
 
 function formatVND(value) {
     return new Intl.NumberFormat("vi-VN", {
         style: "currency",
         currency: "VND",
-        maximumFractionDigits: 0,
     }).format(Number(value || 0));
 }
 
-function changeQuantity(nextQuantity) {
-    if (props.disabled) {
-        return;
+function changeQuantity(next) {
+    if (!editableQuantity.value) return;
+
+    const value = Number(next);
+
+    if (!Number.isSafeInteger(value)) return;
+
+    const safe = Math.min(Math.max(value, 1), maxQuantity.value);
+
+    if (safe !== quantity.value) {
+        emit("update-quantity", { id: props.item.id, quantity: safe });
     }
+}
 
-    if (!stock.value) {
-        return;
-    }
+function inputChanged(event) {
+    changeQuantity(event.target.value);
 
-    const safeQuantity = Math.min(
-        Math.max(Number(nextQuantity || 1), 1),
-        stock.value,
-    );
-
-    if (safeQuantity === quantity.value) {
-        return;
-    }
-
-    emit("update-quantity", {
-        id: props.item.id,
-        quantity: safeQuantity,
-    });
+    // Giá trị hiển thị luôn theo dữ liệu đã được server chấp nhận.
+    event.target.value = quantity.value;
 }
 </script>
 
 <template>
-    <article class="group rounded-3xl border bg-white p-4 transition duration-300 sm:p-5" :class="selected
-        ? 'border-[#9bc2aa] shadow-[0_14px_40px_rgba(6,75,38,0.08)]'
-        : 'border-slate-200 hover:border-[#b7cebf]'">
+    <article class="group rounded-3xl border bg-white p-4 transition sm:p-5"
+        :class="selected ? 'border-[#9bc2aa] shadow-sm' : 'border-slate-200 hover:border-[#b7cebf]'">
         <div class="flex gap-3 sm:gap-5">
-            <label class="mt-12 shrink-0 cursor-pointer sm:mt-14" :aria-label="`Chọn ${productName}`">
-                <input type="checkbox"
-                    class="size-[18px] cursor-pointer rounded border-slate-300 accent-[#07532b] disabled:cursor-not-allowed disabled:opacity-50"
-                    :checked="selected" :disabled="disabled" @change="emit('toggle-select', item.id)" />
+            <label class="mt-10 shrink-0" :aria-label="`Chọn ${productName}`">
+                <input type="checkbox" class="size-[18px] accent-[#07532b]" :checked="selected" :disabled="disabled"
+                    @change="emit('toggle-select', item.id)" />
             </label>
 
-            <RouterLink :to="{
-                name: 'client-product-detail',
-                params: { id: product.id },
-            }"
-                class="grid size-24 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#f6f8f5] p-2 sm:size-32">
-                <img :src="primaryImage" :alt="productName"
-                    class="h-full w-full object-contain transition duration-500 group-hover:scale-105" />
+            <RouterLink :to="productLink"
+                class="grid size-20 shrink-0 place-items-center overflow-hidden rounded-2xl bg-[#f6f8f5] p-2 sm:size-32">
+                <img v-if="primaryImage" :src="primaryImage" :alt="productName" class="size-full object-contain" />
+                <Icon v-else icon="mdi:package-variant" class="text-4xl text-slate-300" />
             </RouterLink>
 
             <div class="min-w-0 flex-1">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
-                        <RouterLink :to="{
-                            name: 'client-product-detail',
-                            params: { id: product.id },
-                        }"
-                            class="line-clamp-2 text-sm font-bold leading-5 text-[#123d27] transition hover:text-[#d39f00] sm:text-base">
+                        <RouterLink :to="productLink"
+                            class="line-clamp-2 text-sm font-bold text-[#123d27] sm:text-base">
                             {{ productName }}
                         </RouterLink>
 
@@ -167,83 +128,56 @@ function changeQuantity(nextQuantity) {
                             <span class="rounded-full bg-[#edf5f0] px-2.5 py-1 text-[#176139]">
                                 {{ variant.variant_name || variant.name || "Mặc định" }}
                             </span>
-
-                            <span class="rounded-full bg-slate-100 px-2.5 py-1">
-                                {{ packageLabel }}
-                            </span>
-
-                            <span v-if="packageData.sku" class="rounded-full bg-slate-100 px-2.5 py-1">
-                                SKU: {{ packageData.sku }}
-                            </span>
+                            <span class="rounded-full bg-slate-100 px-2.5 py-1">{{ packageLabel }}</span>
+                            <span v-if="packageData.sku" class="rounded-full bg-slate-100 px-2.5 py-1">SKU: {{
+                                packageData.sku }}</span>
                         </div>
                     </div>
 
                     <button type="button"
-                        class="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-40"
+                        class="grid size-9 shrink-0 place-items-center rounded-full text-slate-400 hover:bg-red-50 hover:text-red-500 disabled:opacity-40"
                         aria-label="Xóa khỏi giỏ hàng" :disabled="disabled" @click="emit('remove', item.id)">
                         <Icon icon="mdi:trash-can-outline" class="text-xl" />
                     </button>
                 </div>
 
-                <p class="mt-3 text-sm font-bold text-[#0a7a3d] sm:text-base">
-                    {{ formatVND(price) }}
-                </p>
+                <p class="mt-3 font-bold text-[#0a7a3d]">{{ formatVND(price) }}</p>
 
                 <div class="mt-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
                     <div>
-                        <div
-                            class="inline-flex h-10 items-center overflow-hidden rounded-full border border-[#bfd2c5] bg-white">
-                            <button type="button"
-                                class="grid h-full w-10 place-items-center text-[#174e31] transition hover:bg-[#edf5f0] disabled:cursor-not-allowed disabled:opacity-35"
-                                :disabled="disabled || quantity <= 1 || stock === 0" aria-label="Giảm số lượng"
+                        <div class="inline-flex h-10 items-center overflow-hidden rounded-full border border-[#bfd2c5]">
+                            <button type="button" class="grid h-full w-10 place-items-center disabled:opacity-35"
+                                :disabled="!editableQuantity || quantity <= 1" aria-label="Giảm số lượng"
                                 @click="changeQuantity(quantity - 1)">
                                 <Icon icon="mdi:minus" />
                             </button>
 
-                            <input :value="quantity" type="number" min="1" :max="stock"
-                                class="h-full w-11 border-x border-[#d8e3dc] bg-transparent text-center text-sm font-semibold text-[#174e31] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
-                                :disabled="disabled || stock === 0" aria-label="Số lượng"
-                                @change="changeQuantity($event.target.value)" />
+                            <input :value="quantity" type="number" min="1" :max="maxQuantity || 1" step="1"
+                                class="h-full w-14 border-x border-slate-200 bg-transparent text-center text-sm outline-none"
+                                :disabled="!editableQuantity" aria-label="Số lượng" @change="inputChanged" />
 
-                            <button type="button"
-                                class="grid h-full w-10 place-items-center text-[#174e31] transition hover:bg-[#edf5f0] disabled:cursor-not-allowed disabled:opacity-35"
-                                :disabled="disabled || quantity >= stock || stock === 0" aria-label="Tăng số lượng"
+                            <button type="button" class="grid h-full w-10 place-items-center disabled:opacity-35"
+                                :disabled="!editableQuantity || quantity >= maxQuantity" aria-label="Tăng số lượng"
                                 @click="changeQuantity(quantity + 1)">
                                 <Icon icon="mdi:plus" />
                             </button>
                         </div>
 
-                        <p class="mt-1.5 text-[11px]" :class="stock > 5
-                            ? 'text-slate-400'
-                            : 'font-semibold text-orange-500'">
-                            {{
-                                stock > 0
-                                    ? `Còn ${stock} sản phẩm`
-                                    : "Sản phẩm đã hết hàng"
-                            }}
+                        <p class="mt-2 text-xs" :class="unavailableReason ? 'text-red-600' : 'text-slate-500'">
+                            {{ unavailableReason || `Còn ${stock} sản phẩm có thể bán` }}
                         </p>
                     </div>
 
-                    <div class="flex items-end justify-between gap-4 sm:block sm:text-right">
+                    <div class="sm:text-right">
                         <button type="button"
-                            class="flex items-center gap-1 text-xs font-semibold text-slate-500 transition hover:text-red-500 sm:mb-2 sm:ml-auto disabled:cursor-not-allowed disabled:opacity-40"
-                            :disabled="disabled" @click="emit('move-wishlist', {
-                                itemId: item.id,
-                                productId: product.id,
-                            })">
+                            class="mb-2 flex items-center gap-1 text-xs text-slate-500 hover:text-red-500 sm:ml-auto"
+                            :disabled="disabled || !product.id"
+                            @click="emit('move-wishlist', { itemId: item.id, productId: product.id })">
                             <Icon icon="mdi:heart-outline" class="text-lg" />
                             Lưu yêu thích
                         </button>
-
-                        <div>
-                            <span class="block text-[10px] uppercase tracking-wide text-slate-400">
-                                Thành tiền
-                            </span>
-
-                            <strong class="text-base text-[#073f22] sm:text-lg">
-                                {{ formatVND(lineTotal) }}
-                            </strong>
-                        </div>
+                        <span class="block text-[10px] uppercase text-slate-400">Thành tiền</span>
+                        <strong class="text-lg text-[#073f22]">{{ formatVND(lineTotal) }}</strong>
                     </div>
                 </div>
             </div>

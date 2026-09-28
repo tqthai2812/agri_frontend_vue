@@ -14,7 +14,7 @@ import {
 
 import { Icon } from "@iconify/vue";
 
-import ClientProductService from "@/services/clientProduct.service";
+import ClientProductService from "@/services/client/clientProduct.service";
 import WishlistService from "@/services/client/wishlist.service";
 
 import { useCartStore } from "@/stores/client/cartStore";

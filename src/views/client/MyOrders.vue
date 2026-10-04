@@ -3,6 +3,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useRouter } from "vue-router";
 
+import OrderReviewModal from "@/components/client/account/OrderReviewModal.vue";
 import AccountOrderCard from "@/components/client/account/AccountOrderCard.vue";
 import ClientOrderService from "@/services/client/clientOrder.service";
 import { useCartStore } from "@/stores/client/cartStore";
@@ -18,6 +19,8 @@ const loading = ref(false);
 const actionLoading = ref(false);
 
 const orders = ref([]);
+const reviewModalOpen = ref(false);
+const reviewOrderId = ref(null);
 const statusCounts = ref({
     all: 0,
     pending: 0,
@@ -35,6 +38,10 @@ const pagination = ref({
 
 let searchTimer = null;
 let toastTimer = null;
+let buyTimer = null;
+let disposed = false;
+let loadVersion = 0;
+let requestedPage = 1;
 
 const tabs = [
     { value: "all", label: "Tất cả" },
@@ -50,6 +57,7 @@ function countStatus(status) {
 }
 
 function showToast(message) {
+    if (disposed) return;
     toast.value = message;
 
     window.clearTimeout(toastTimer);
@@ -62,6 +70,7 @@ function showToast(message) {
 async function fetchStatusCounts() {
     try {
         const response = await ClientOrderService.getStatusCounts();
+        if (disposed) return;
 
         statusCounts.value = {
             ...statusCounts.value,
@@ -73,6 +82,8 @@ async function fetchStatusCounts() {
 }
 
 async function fetchOrders(page = 1) {
+    const version = ++loadVersion;
+    requestedPage = page;
     loading.value = true;
     error.value = "";
 
@@ -88,6 +99,7 @@ async function fetchOrders(page = 1) {
         };
 
         const response = await ClientOrderService.getOrders(params);
+        if (disposed || version !== loadVersion) return;
 
         orders.value = response.data?.data || [];
 
@@ -97,10 +109,11 @@ async function fetchOrders(page = 1) {
             total: response.data?.meta?.total || orders.value.length,
         };
     } catch (err) {
+        if (disposed || version !== loadVersion) return;
         error.value =
             err.response?.data?.message || "Không tải được danh sách đơn hàng.";
     } finally {
-        loading.value = false;
+        if (!disposed && version === loadVersion) loading.value = false;
     }
 }
 
@@ -110,6 +123,7 @@ function reloadOrders() {
 }
 
 async function cancelOrder(order) {
+    if (actionLoading.value || reviewModalOpen.value || !order.can_cancel) return;
     const confirmed = window.confirm(
         `Bạn có chắc muốn hủy đơn hàng #${order.id}?`,
     );
@@ -139,6 +153,7 @@ async function cancelOrder(order) {
 }
 
 async function buyAgain(order) {
+    if (actionLoading.value || reviewModalOpen.value) return;
     actionLoading.value = true;
     error.value = "";
 
@@ -152,7 +167,8 @@ async function buyAgain(order) {
 
         showToast("Đã thêm lại sản phẩm vào giỏ hàng.");
 
-        window.setTimeout(() => {
+        buyTimer = window.setTimeout(() => {
+            if (disposed) return;
             router.push({
                 name: "cart",
             });
@@ -165,6 +181,19 @@ async function buyAgain(order) {
     } finally {
         actionLoading.value = false;
     }
+}
+
+function openReviews(order) {
+    if (actionLoading.value || order.order_status !== "completed" || (!order.can_review && !order.has_reviews)) return;
+    reviewOrderId.value = order.id;
+    reviewModalOpen.value = true;
+}
+
+function acceptReviewOrder(value) {
+    if (disposed || !value?.id) return;
+    orders.value = orders.value.map((item) => Number(item.id) === Number(value.id) ? value : item);
+    // Một lần tìm kiếm/phân trang cũ đang chờ không được ghi đè kết quả vừa lưu.
+    if (loading.value) fetchOrders(requestedPage);
 }
 
 function viewDetail(order) {
@@ -193,6 +222,9 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+    disposed = true;
+    loadVersion++;
+    window.clearTimeout(buyTimer);
     window.clearTimeout(searchTimer);
     window.clearTimeout(toastTimer);
 });
@@ -285,7 +317,7 @@ onBeforeUnmount(() => {
 
         <div v-else-if="orders.length" class="mt-5 space-y-5">
             <AccountOrderCard v-for="order in orders" :key="order.id" :order="order" :disabled="actionLoading"
-                @cancel="cancelOrder" @buy-again="buyAgain" @view-detail="viewDetail" />
+                @cancel="cancelOrder" @buy-again="buyAgain" @view-detail="viewDetail" @review="openReviews" />
 
             <div v-if="pagination.last_page > 1" class="flex items-center justify-center gap-2 pt-2">
                 <button type="button"
@@ -319,5 +351,7 @@ onBeforeUnmount(() => {
                 Thử thay đổi trạng thái hoặc từ khóa tìm kiếm.
             </p>
         </div>
+        <OrderReviewModal v-model="reviewModalOpen" :order-id="reviewOrderId" @updated="acceptReviewOrder"
+            @saved="showToast" />
     </section>
 </template>

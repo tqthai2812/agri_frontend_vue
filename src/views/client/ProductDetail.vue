@@ -24,7 +24,6 @@ const purchasing = ref(false);
 const savingWishlist = ref(false);
 
 const product = ref(null);
-const reviews = ref([]);
 const relatedProducts = ref([]);
 const wishlisted = ref(false);
 const toastMessage = ref("");
@@ -110,7 +109,6 @@ function normalizeProduct(data) {
         name: data.name || data.product_name || "Sản phẩm",
         images: Array.isArray(data.images) ? data.images : [],
         variants,
-        reviews: Array.isArray(data.reviews) ? data.reviews : [],
         is_show: booleanValue(data.is_show),
         average_rating: numberValue(data.average_rating),
         review_count: numberValue(data.review_count ?? data.reviews?.length),
@@ -223,7 +221,6 @@ async function loadProduct() {
     toastMessage.value = "";
     errorMessage.value = "";
     product.value = null;
-    reviews.value = [];
     relatedProducts.value = [];
     wishlisted.value = false;
     loadingRelated.value = false;
@@ -241,7 +238,6 @@ async function loadProduct() {
         }
 
         product.value = normalizeProduct(data);
-        reviews.value = product.value.reviews;
         loading.value = false;
 
         await Promise.all([
@@ -407,8 +403,13 @@ async function handleWishlist() {
     }
 }
 
-function handleSubmitReview() {
-    showToast("Chức năng đánh giá sản phẩm chưa được kết nối.");
+function updateReviewSummary(summary) {
+    if (!product.value || Number(summary.product_id) !== Number(product.value.id)) return;
+    product.value = {
+        ...product.value,
+        review_count: Number(summary.review_count || 0),
+        average_rating: Number(summary.average_rating || 0),
+    };
 }
 
 watch(() => route.params.id, loadProduct, { immediate: true });
@@ -512,8 +513,7 @@ onBeforeUnmount(() => {
                 </div>
 
                 <div class="mt-12">
-                    <ProductContentTabs :key="product.id" :product="product" :reviews="reviews"
-                        @submit-review="handleSubmitReview" />
+                    <ProductContentTabs :key="product.id" :product="product" @review-summary="updateReviewSummary" />
                 </div>
 
                 <section class="mt-14">

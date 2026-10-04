@@ -3,9 +3,18 @@ import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { RouterLink } from "vue-router";
 import { Icon } from "@iconify/vue";
 import ProductReviewService from "@/services/client/productReview.service";
+import { useAuthStore } from "@/stores/shared/authStore";
+import ProductReviewModerationDialog from "@/components/client/product/ProductReviewModerationDialog.vue";
 
 const props = defineProps({ productId: { type: [Number, String], required: true } });
 const emit = defineEmits(["summary"]);
+const authStore = useAuthStore();
+const canManage = computed(() => authStore.isAuthenticated && authStore.hasPermission("review.view"));
+const canReply = computed(() => canManage.value && authStore.hasPermission("review.reply"));
+const managementOpen = ref(false);
+const initialReviewId = ref(null);
+const notice = ref("");
+const summaryStale = ref(false);
 const reviews = ref([]);
 const loading = ref(false);
 const error = ref("");
@@ -21,21 +30,24 @@ const distribution = computed(() => [5, 4, 3, 2, 1].map((rating) => {
     return { rating, count, percent: summary.value.review_count ? (count / summary.value.review_count) * 100 : 0 };
 }));
 
-async function loadReviews(page = 1) {
+async function loadReviews(page = 1, correctPage = true) {
     const requestId = ++version;
+    const productId = props.productId;
     requestedPage.value = page;
     loading.value = true;
     error.value = "";
 
     try {
-        const response = await ProductReviewService.getProductReviews(props.productId, {
+        const response = await ProductReviewService.getProductReviews(productId, {
             page, per_page: 10, rating: ratingFilter.value || undefined,
         });
         if (disposed || requestId !== version) return;
+        const lastPage = Math.max(1, Number(response.data?.meta?.last_page || 1));
+        if (correctPage && page > lastPage) return await loadReviews(lastPage, false);
         reviews.value = Array.isArray(response.data?.data) ? response.data.data : [];
         meta.value = {
             current_page: Number(response.data?.meta?.current_page ?? 1),
-            last_page: Number(response.data?.meta?.last_page ?? 1),
+            last_page: lastPage,
             total: Number(response.data?.meta?.total ?? 0),
         };
         const data = response.data?.summary || {};
@@ -44,15 +56,38 @@ async function loadReviews(page = 1) {
             review_count: Number(data.review_count || 0),
             distribution: Array.isArray(data.distribution) ? data.distribution : [],
         };
-        emit("summary", { product_id: props.productId, ...summary.value });
+        summaryStale.value = false;
+        emit("summary", { product_id: productId, ...summary.value });
     } catch (err) {
         if (disposed || requestId !== version) return;
         reviews.value = [];
-        error.value = err.response?.data?.message || "Không tải được đánh giá. Vui lòng thử lại.";
+        error.value = summaryStale.value
+            ? "Thay đổi đã được lưu nhưng chưa tải lại được đánh giá và điểm sao. Bấm Thử lại để cập nhật."
+            : err.response?.data?.message || "Không tải được đánh giá. Vui lòng thử lại.";
     } finally {
         if (!disposed && requestId === version) loading.value = false;
     }
 }
+
+function openManagement(reviewId = null) {
+    if (!canManage.value) return;
+    initialReviewId.value = reviewId;
+    managementOpen.value = true;
+}
+
+function onManaged(result) {
+    if (disposed || String(result.product_id) !== String(props.productId)) return;
+    notice.value = result.message || "Đã lưu thay đổi đánh giá.";
+    summaryStale.value = true;
+    reviews.value = [];
+    loadReviews(meta.value.current_page);
+}
+
+watch([canManage, () => authStore.user?.id], () => {
+    managementOpen.value = false;
+    initialReviewId.value = null;
+    notice.value = "";
+}, { flush: "sync" });
 
 function filterBy(rating) {
     if (loading.value || ratingFilter.value === rating) return;
@@ -77,11 +112,15 @@ function packageLabel(purchase) {
 }
 
 watch(() => props.productId, () => {
+    managementOpen.value = false;
+    initialReviewId.value = null;
+    notice.value = "";
+    summaryStale.value = false;
     ratingFilter.value = 0;
     reviews.value = [];
     summary.value = { average_rating: 0, review_count: 0, distribution: [] };
     loadReviews(1);
-}, { immediate: true });
+}, { immediate: true, flush: "sync" });
 
 onBeforeUnmount(() => { disposed = true; version++; });
 </script>
@@ -97,6 +136,8 @@ onBeforeUnmount(() => { disposed = true; version++; });
                         :class="star <= Math.round(summary.average_rating) ? 'text-[#ffc400]' : 'text-slate-200'" />
                 </div>
                 <p class="mt-2 text-xs text-slate-500">{{ summary.review_count }} lượt đánh giá</p>
+                <p v-if="summaryStale" role="status" class="mt-2 text-xs text-amber-700">
+                    {{ loading ? 'Đang cập nhật điểm sao...' : 'Điểm sao chưa được tải lại.' }}</p>
             </div>
             <div class="mt-5 space-y-3">
                 <div v-for="row in distribution" :key="row.rating" class="flex items-center gap-2 text-xs">
@@ -110,6 +151,19 @@ onBeforeUnmount(() => { disposed = true; version++; });
         </aside>
 
         <div class="min-w-0">
+            <div v-if="canManage"
+                class="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#bdd5c5] bg-[#edf5f0] p-4">
+                <div>
+                    <p class="text-sm font-bold text-[#07532b]">Quản lý đánh giá ngay tại đây</p>
+                    <p class="mt-1 text-xs text-slate-500">Xem cả đánh giá đã ẩn và chờ duyệt của sản phẩm này.</p>
+                </div>
+                <button type="button" @click="openManagement()"
+                    class="inline-flex items-center gap-2 rounded-full bg-[#07532b] px-4 py-2 text-xs font-bold text-white">
+                    <Icon icon="mdi:comment-edit-outline" class="text-lg" />Quản lý đánh giá
+                </button>
+            </div>
+            <p v-if="notice && canManage" role="status"
+                class="mb-4 rounded-xl bg-emerald-50 p-3 text-sm text-emerald-700">{{ notice }}</p>
             <div class="rounded-2xl border border-[#dce8df] bg-[#f6faf7] p-4 text-sm leading-6 text-slate-600">
                 Bạn đã mua sản phẩm? Vào
                 <RouterLink :to="{ name: 'my-orders' }" class="font-bold text-[#07532b] underline">Đơn mua</RouterLink>
@@ -167,11 +221,21 @@ onBeforeUnmount(() => { disposed = true; version++; });
                             <div v-if="review.replies?.length" class="mt-4 space-y-3 border-l-2 border-[#dce8df] pl-4">
                                 <div v-for="reply in review.replies" :key="reply.id"
                                     class="rounded-xl bg-[#f7faf8] p-4">
-                                    <strong class="text-xs text-[#07532b]">{{ reply.user?.name || "Người dùng"
-                                        }}</strong>
+                                    <strong class="text-xs text-[#07532b]">
+                                        {{ reply.is_shop_reply ? "Phản hồi từ cửa hàng" : reply.user?.name ||
+                                            "Người dùng" }}</strong>
+                                    <p class="mt-1 text-[11px] text-slate-400">{{ formatDate(reply.created_at) }}</p>
                                     <p class="mt-2 whitespace-pre-line break-words text-sm leading-6 text-slate-600">{{
                                         reply.content }}</p>
                                 </div>
+                            </div>
+                            <div v-if="canManage"
+                                class="mt-4 flex flex-wrap gap-2 border-t border-dashed border-slate-200 pt-3">
+                                <button type="button" @click="openManagement(review.id)"
+                                    class="inline-flex items-center gap-1.5 rounded-full border border-[#9dbba8] px-4 py-2 text-xs font-semibold text-[#07532b] hover:bg-[#edf5f0]">
+                                    <Icon icon="mdi:comment-edit-outline" class="text-lg" />
+                                    {{ canReply ? 'Trả lời / Quản lý' : 'Quản lý đánh giá' }}
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -190,4 +254,6 @@ onBeforeUnmount(() => { disposed = true; version++; });
             </nav>
         </div>
     </div>
+    <ProductReviewModerationDialog v-if="canManage && managementOpen" v-model="managementOpen" :product-id="productId"
+        :initial-review-id="initialReviewId" @saved="onManaged" />
 </template>

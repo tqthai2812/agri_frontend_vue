@@ -1,14 +1,12 @@
-// ===== Admin layout =====
-
 const AppLayout = () => import("@/components/layout/AppLayout.vue");
-
-// ===== Lazy-load admin pages =====
 
 const Dashboard = () => import("@/views/Dashboard.vue");
 const Products = () => import("@/views/Products.vue");
 const Categories = () => import("@/views/Categories.vue");
+const Suppliers = () => import("@/views/Suppliers.vue");
 const Artisans = () => import("@/views/Artisans.vue");
 const Orders = () => import("@/views/Orders.vue");
+const ProductReviews = () => import("@/views/ProductReviews.vue");
 const Inventory = () => import("@/views/Inventory.vue");
 const Gallery = () => import("@/views/Gallery.vue");
 const Articles = () => import("@/views/Articles.vue");
@@ -16,24 +14,13 @@ const Settings = () => import("@/views/Settings.vue");
 const Roles = () => import("@/views/Roles.vue");
 const DeliveryMethods = () => import("@/views/DeliveryMethods.vue");
 const Discounts = () => import("@/views/Discounts.vue");
-const Suppliers = () => import("@/views/Suppliers.vue");
-
-// ===== Admin routes =====
 
 const adminRoutes = [
   {
     path: "/admin",
     component: AppLayout,
-
-    redirect: {
-      name: "admin-dashboard",
-    },
-
-    meta: {
-      requiresAuth: true,
-      area: "admin",
-    },
-
+    redirect: { name: "admin-dashboard" },
+    meta: { requiresAuth: true, area: "admin" },
     children: [
       {
         path: "dashboard",
@@ -44,17 +31,12 @@ const adminRoutes = [
           requiredPermission: "dashboard.view",
         },
       },
-
       {
         path: "products",
         name: "admin-products",
         component: Products,
-        meta: {
-          title: "Quản lý sản phẩm",
-          requiredPermission: "product.view",
-        },
+        meta: { title: "Quản lý sản phẩm", requiredPermission: "product.view" },
       },
-
       {
         path: "categories",
         name: "admin-categories",
@@ -64,87 +46,60 @@ const adminRoutes = [
           requiredPermission: "category.view",
         },
       },
-
       {
         path: "suppliers",
         name: "admin-suppliers",
         component: Suppliers,
-        meta: {
-          title: "Nhà cung cấp",
-          requiredPermission: "inventory.view",
-        },
+        meta: { title: "Nhà cung cấp", requiredPermission: "inventory.view" },
       },
-
       {
         path: "artisans",
         name: "admin-artisans",
         component: Artisans,
-        meta: {
-          title: "Quản lý người dùng",
-          requiredPermission: "user.view",
-        },
+        meta: { title: "Quản lý người dùng", requiredPermission: "user.view" },
       },
-
       {
         path: "orders",
         name: "admin-orders",
         component: Orders,
-        meta: {
-          title: "Quản lý đơn hàng",
-          requiredPermission: "order.view",
-        },
+        meta: { title: "Quản lý đơn hàng", requiredPermission: "order.view" },
       },
-
+      {
+        path: "reviews",
+        name: "admin-reviews",
+        component: ProductReviews,
+        meta: { title: "Quản lý đánh giá", requiredPermission: "review.view" },
+      },
       {
         path: "inventory",
         name: "admin-inventory",
         component: Inventory,
-        meta: {
-          title: "Hàng tồn kho",
-          requiredPermission: "inventory.view",
-        },
+        meta: { title: "Hàng tồn kho", requiredPermission: "inventory.view" },
       },
-
       {
         path: "gallery",
         name: "admin-gallery",
         component: Gallery,
-        meta: {
-          title: "Phần trưng bày",
-          requiredPermission: "gallery.view",
-        },
+        meta: { title: "Phần trưng bày", requiredPermission: "gallery.view" },
       },
-
       {
         path: "articles",
         name: "admin-articles",
         component: Articles,
-        meta: {
-          title: "Bài viết",
-          requiredPermission: "article.view",
-        },
+        meta: { title: "Bài viết", requiredPermission: "article.view" },
       },
-
       {
         path: "settings",
         name: "admin-settings",
         component: Settings,
-        meta: {
-          title: "Cài đặt",
-          requiredPermission: "settings.view",
-        },
+        meta: { title: "Cài đặt", requiredPermission: "settings.view" },
       },
-
       {
         path: "roles",
         name: "admin-roles",
         component: Roles,
-        meta: {
-          title: "Quản lý phân quyền",
-          requiredPermission: "role.view",
-        },
+        meta: { title: "Quản lý phân quyền", requiredPermission: "role.view" },
       },
-
       {
         path: "delivery-methods",
         name: "admin-delivery-methods",
@@ -154,7 +109,6 @@ const adminRoutes = [
           requiredPermission: "delivery-method.view",
         },
       },
-
       {
         path: "discounts",
         name: "admin-discounts",

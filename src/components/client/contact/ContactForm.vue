@@ -1,323 +1,89 @@
 <script setup>
-import {
-    computed,
-    reactive,
-    ref,
-} from 'vue'
-
-import { Icon } from '@iconify/vue'
-import { useAuthStore } from '@/stores/shared/authStore'
-
-const emit = defineEmits(['submitted'])
-
-const authStore = useAuthStore()
-
-const form = reactive({
-    subject: '',
-    message: '',
-})
-
-const errors = reactive({
-    subject: '',
-    message: '',
-})
-
-const submitting = ref(false)
-const submittedContact = ref(null)
-
-const currentUser = computed(() => {
-    return authStore.user || {}
-})
-
-const subjectSuggestions = [
-    'Tư vấn sản phẩm',
-    'Hỗ trợ đơn hàng',
-    'Chính sách đổi trả',
-    'Hợp tác kinh doanh',
-]
-
-function clearErrors() {
-    errors.subject = ''
-    errors.message = ''
-}
-
-function validate() {
-    clearErrors()
-
-    if (form.subject.trim().length < 5) {
-        errors.subject =
-            'Chủ đề cần có ít nhất 5 ký tự.'
-    }
-
-    if (form.subject.trim().length > 150) {
-        errors.subject =
-            'Chủ đề không được vượt quá 150 ký tự.'
-    }
-
-    if (form.message.trim().length < 20) {
-        errors.message =
-            'Nội dung cần có ít nhất 20 ký tự.'
-    }
-
-    if (form.message.trim().length > 2000) {
-        errors.message =
-            'Nội dung không được vượt quá 2.000 ký tự.'
-    }
-
-    return !errors.subject && !errors.message
-}
-
+import { computed } from "vue";
+import { Icon } from "@iconify/vue";
+import { useAuthStore } from "@/stores/shared/authStore";
+import { useClientContactStore } from "@/stores/client/contactStore";
+const authStore = useAuthStore();
+const store = useClientContactStore();
+const emit = defineEmits(["submitted"]);
+const user = computed(() => authStore.user || {});
+const subjects = ["Tư vấn sản phẩm", "Hỗ trợ đơn hàng", "Thanh toán", "Hợp tác kinh doanh"];
 async function submitContact() {
-    if (
-        !authStore.isAuthenticated ||
-        !validate()
-    ) {
-        return
-    }
-
-    submitting.value = true
-
-    try {
-        // Không gửi user_id và status từ frontend.
-        // Laravel tự lấy auth()->id() và gán pending.
-        const payload = {
-            subject: form.subject.trim(),
-            message: form.message.trim(),
-        }
-
-        // Khi nối backend:
-        // const { data } = await apiClient.post(
-        //   '/api/contacts',
-        //   payload,
-        // )
-
-        await new Promise((resolve) => {
-            window.setTimeout(resolve, 650)
-        })
-
-        submittedContact.value = {
-            id: Math.floor(
-                10000 + Math.random() * 90000,
-            ),
-            user_id: currentUser.value.id,
-            ...payload,
-            status: 'pending',
-            created_at: new Date().toISOString(),
-        }
-
-        form.subject = ''
-        form.message = ''
-
-        clearErrors()
-
-        emit(
-            'submitted',
-            submittedContact.value,
-        )
-    } finally {
-        submitting.value = false
-    }
-}
-
-function resetForm() {
-    submittedContact.value = null
-    clearErrors()
+    if (!authStore.isAuthenticated) return;
+    const contact = await store.submit();
+    if (contact) emit("submitted", contact);
 }
 </script>
-
 <template>
-    <section
-        class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-[0_15px_45px_rgba(6,75,38,0.07)]">
-        <header class="border-b border-slate-100 px-5 py-5 sm:px-7 sm:py-6">
-            <div class="flex items-center gap-3">
-                <span class="grid size-11 place-items-center rounded-2xl bg-[#edf5f0] text-[#07532b]">
-                    <Icon icon="mdi:message-text-outline" class="text-2xl" />
-                </span>
-
-                <div>
-                    <h2 class="text-lg font-bold text-[#123d27]">
-                        Gửi yêu cầu hỗ trợ
-                    </h2>
-
-                    <p class="mt-0.5 text-[10px] text-slate-400">
-                        Chúng tôi sẽ phản hồi trong thời gian
-                        sớm nhất.
-                    </p>
-                </div>
-            </div>
+    <section class="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <header class="border-b border-slate-100 p-6">
+            <h2 class="flex items-center gap-2 text-lg font-bold text-[#123d27]">
+                <Icon icon="mdi:message-text-outline" />Gửi yêu cầu hỗ trợ
+            </h2>
+            <p class="mt-2 text-xs leading-5 text-slate-500">Mô tả vấn đề để cửa hàng có thể hỗ trợ bạn.</p>
         </header>
-
-        <!-- Chưa đăng nhập -->
-        <div v-if="!authStore.isAuthenticated" class="px-5 py-10 text-center sm:px-7 sm:py-14">
-            <span class="mx-auto grid size-20 place-items-center rounded-full bg-[#edf5f0] text-[#07532b]">
-                <Icon icon="mdi:account-lock-outline" class="text-4xl" />
-            </span>
-
-            <h3 class="mt-5 text-base font-bold text-[#123d27]">
-                Đăng nhập để gửi liên hệ
-            </h3>
-
-            <p class="mx-auto mt-2 max-w-md text-xs leading-5 text-slate-400">
-                CSDL hiện tại liên kết mỗi yêu cầu với một
-                tài khoản. Bạn vẫn có thể gọi điện hoặc gửi
-                email trực tiếp nếu chưa đăng nhập.
-            </p>
-
-            <RouterLink :to="{
-                name: 'login',
-                query: {
-                    redirect: '/contact',
-                },
-            }"
-                class="mt-6 inline-flex items-center gap-2 rounded-full bg-[#07532b] px-6 py-3 text-xs font-bold text-white transition hover:bg-[#064522]">
-                <Icon icon="mdi:login" class="text-lg" />
-                Đăng nhập ngay
+        <div v-if="!authStore.isAuthenticated" class="p-8 text-center">
+            <Icon icon="mdi:account-lock-outline" class="mx-auto text-5xl text-[#07532b]" />
+            <h3 class="mt-4 font-bold">Đăng nhập để gửi và theo dõi liên hệ</h3>
+            <p class="mt-2 text-sm leading-6 text-slate-500">Bạn vẫn có thể gọi điện hoặc gửi email trực tiếp cho cửa
+                hàng.</p>
+            <RouterLink :to="{ name: 'login', query: { redirect: '/contact' } }"
+                class="mt-5 inline-flex rounded-full bg-[#07532b] px-6 py-3 text-sm font-bold text-white">Đăng nhập
             </RouterLink>
         </div>
-
-        <!-- Thành công -->
-        <div v-else-if="submittedContact" class="px-5 py-10 text-center sm:px-7 sm:py-14">
-            <span class="mx-auto grid size-20 place-items-center rounded-full bg-emerald-50 text-emerald-600">
-                <Icon icon="mdi:check-decagram-outline" class="text-4xl" />
-            </span>
-
-            <h3 class="mt-5 text-lg font-bold text-[#123d27]">
-                Đã gửi yêu cầu thành công
-            </h3>
-
-            <p class="mt-2 text-xs leading-5 text-slate-400">
-                Mã yêu cầu của bạn là
-
-                <strong class="text-[#07532b]">
-                    #{{ submittedContact.id }}
-                </strong>.
-
-                Trạng thái hiện tại:
-
-                <strong class="text-amber-600">
-                    Chờ xử lý
-                </strong>.
-            </p>
-
-            <button type="button"
-                class="mt-6 rounded-full border border-[#07532b] px-5 py-2.5 text-xs font-bold text-[#07532b] transition hover:bg-[#edf5f0]"
-                @click="resetForm">
-                Gửi yêu cầu khác
-            </button>
+        <div v-else-if="store.receipt" role="status" class="p-8 text-center">
+            <Icon icon="mdi:check-decagram-outline" class="mx-auto text-5xl text-green-600" />
+            <h3 class="mt-4 text-lg font-bold text-[#123d27]">Đã tiếp nhận yêu cầu</h3>
+            <p class="mt-3 text-sm text-slate-500">Mã yêu cầu <strong class="text-[#07532b]">{{ store.receipt.code
+            }}</strong> · {{ store.receipt.status_label }}</p>
+            <p class="mt-2 text-xs leading-6 text-slate-500">Bạn có thể theo dõi trạng thái trong phần Lịch sử liên hệ
+                bên dưới.</p>
+            <button type="button" :disabled="store.submitting" @click="store.newRequest"
+                class="mt-5 rounded-full border border-[#07532b] px-5 py-2 text-sm font-semibold text-[#07532b] disabled:opacity-50">Gửi
+                yêu cầu khác</button>
         </div>
-
-        <!-- Form -->
-        <form v-else class="space-y-5 p-5 sm:p-7" @submit.prevent="submitContact">
-            <div class="flex items-center gap-3 rounded-2xl bg-[#f5f8f6] p-4">
-                <span
-                    class="grid size-10 shrink-0 place-items-center rounded-full bg-[#07532b] text-sm font-bold text-white">
-                    {{
-                        currentUser.name
-                            ?.charAt(0)
-                            ?.toUpperCase() || 'U'
-                    }}
-                </span>
-
-                <div class="min-w-0 flex-1">
-                    <strong class="block truncate text-xs text-slate-700">
-                        {{ currentUser.name }}
-                    </strong>
-
-                    <span class="mt-0.5 block truncate text-[10px] text-slate-400">
-                        {{ currentUser.email }}
-                    </span>
-                </div>
-
-                <span class="rounded-full bg-emerald-50 px-2.5 py-1 text-[9px] font-bold text-emerald-600">
-                    Đã xác thực
-                </span>
-            </div>
-
-            <div>
-                <label for="contact-subject" class="text-xs font-bold text-slate-700">
-                    Chủ đề
-                    <span class="text-red-500">*</span>
-                </label>
-
-                <div class="mt-2 flex flex-wrap gap-2">
-                    <button v-for="suggestion in subjectSuggestions" :key="suggestion" type="button"
-                        class="rounded-full border px-3 py-1.5 text-[9px] font-semibold transition" :class="form.subject === suggestion
-                            ? 'border-[#07532b] bg-[#07532b] text-white'
-                            : 'border-slate-200 text-slate-500 hover:border-[#9dbba8] hover:text-[#07532b]'
-                            " @click="form.subject = suggestion">
-                        {{ suggestion }}
-                    </button>
-                </div>
-
-                <div class="relative mt-3">
-                    <Icon icon="mdi:text-box-outline"
-                        class="absolute left-4 top-1/2 -translate-y-1/2 text-xl text-slate-400" />
-
-                    <input id="contact-subject" v-model.trim="form.subject" type="text" maxlength="150"
-                        class="h-12 w-full rounded-2xl border bg-[#fafcfb] pl-12 pr-14 text-sm outline-none transition focus:bg-white focus:ring-4"
-                        :class="errors.subject
-                            ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                            : 'border-slate-200 focus:border-[#0a7139] focus:ring-[#0a7139]/10'
-                            " placeholder="Nhập chủ đề cần hỗ trợ" @input="errors.subject = ''" />
-
-                    <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[9px] text-slate-300">
-                        {{ form.subject.length }}/150
-                    </span>
-                </div>
-
-                <p v-if="errors.subject" class="mt-1.5 flex items-center gap-1 text-[10px] text-red-500">
-                    <Icon icon="mdi:alert-circle-outline" />
-                    {{ errors.subject }}
+        <form v-else class="space-y-5 p-6" @submit.prevent="submitContact">
+            <div class="rounded-2xl bg-[#f3f8f5] p-4">
+                <p class="text-sm font-bold text-[#123d27]">{{ user.name }}</p>
+                <p class="mt-1 break-all text-xs text-slate-500">{{ user.email }}<span v-if="user.phone_number"> · {{
+                    user.phone_number }}</span></p>
+                <p class="mt-2 text-xs leading-5 text-slate-500">Cửa hàng dùng thông tin tài khoản để liên hệ lại.
+                    <RouterLink :to="{ name: 'profile' }" class="font-semibold text-[#07532b] underline">Kiểm tra thông
+                        tin</RouterLink>
                 </p>
             </div>
-
-            <div>
-                <div class="flex items-center justify-between gap-3">
-                    <label for="contact-message" class="text-xs font-bold text-slate-700">
-                        Nội dung
-                        <span class="text-red-500">*</span>
-                    </label>
-
-                    <span class="text-[9px] text-slate-300">
-                        {{ form.message.length }}/2000
-                    </span>
-                </div>
-
-                <textarea id="contact-message" v-model.trim="form.message" rows="7" maxlength="2000"
-                    class="mt-2 w-full resize-none rounded-2xl border bg-[#fafcfb] px-4 py-3 text-sm leading-6 outline-none transition focus:bg-white focus:ring-4"
-                    :class="errors.message
-                        ? 'border-red-300 focus:border-red-400 focus:ring-red-100'
-                        : 'border-slate-200 focus:border-[#0a7139] focus:ring-[#0a7139]/10'
-                        " placeholder="Mô tả rõ vấn đề bạn đang cần NFarmHouse hỗ trợ..."
-                    @input="errors.message = ''"></textarea>
-
-                <p v-if="errors.message" class="mt-1.5 flex items-center gap-1 text-[10px] text-red-500">
-                    <Icon icon="mdi:alert-circle-outline" />
-                    {{ errors.message }}
+            <p v-if="store.error" role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-600">{{ store.error }}
+            </p>
+            <div><label for="contact-subject" class="text-sm font-semibold">Chủ đề <span
+                        class="text-red-500">*</span></label>
+                <div class="my-3 flex flex-wrap gap-2"><button v-for="subject in subjects" :key="subject" type="button"
+                        :disabled="store.submitting" @click="store.form.subject = subject"
+                        class="rounded-full border px-3 py-1.5 text-xs disabled:opacity-50"
+                        :class="store.form.subject === subject ? 'border-[#07532b] bg-[#edf5f0] text-[#07532b]' : 'border-slate-200 text-slate-500'">{{
+                            subject }}</button></div>
+                <input id="contact-subject" v-model="store.form.subject" :disabled="store.submitting" required
+                    minlength="5" maxlength="150" placeholder="Nhập chủ đề cần hỗ trợ"
+                    class="h-12 w-full rounded-xl border border-slate-200 px-4 text-sm outline-none focus:border-[#07532b] disabled:opacity-50" />
+                <p v-if="store.fieldErrors.subject" class="mt-1 text-xs text-red-600">{{ store.fieldErrors.subject }}
                 </p>
             </div>
-
-            <div
-                class="flex flex-col-reverse gap-3 border-t border-slate-100 pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <p class="flex items-center gap-1.5 text-[9px] text-slate-400">
-                    <Icon icon="mdi:shield-check-outline" class="text-base text-[#07532b]" />
-                    Thông tin của bạn được bảo mật.
+            <div><label for="contact-message" class="text-sm font-semibold">Nội dung <span
+                        class="text-red-500">*</span></label><textarea id="contact-message" v-model="store.form.message"
+                    :disabled="store.submitting" required minlength="20" maxlength="2000" rows="6"
+                    placeholder="Nếu cần hỗ trợ đơn hàng, vui lòng ghi mã đơn và vấn đề bạn gặp..."
+                    class="mt-2 w-full rounded-xl border border-slate-200 p-4 text-sm outline-none focus:border-[#07532b] disabled:opacity-50"></textarea>
+                <p class="text-right text-xs text-slate-400">{{ Array.from(store.form.message).length }} / 2.000 ký tự
                 </p>
-
-                <button type="submit"
-                    class="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-[#07532b] px-7 text-xs font-bold text-white shadow-[0_10px_24px_rgba(7,83,43,0.2)] transition hover:-translate-y-0.5 hover:bg-[#064522] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
-                    :disabled="submitting">
-                    <Icon :icon="submitting
-                        ? 'mdi:loading'
-                        : 'mdi:send-outline'
-                        " class="text-lg" :class="submitting ? 'animate-spin' : ''
-                            " />
-
-                    {{
-                        submitting
-                            ? 'Đang gửi...'
-                            : 'Gửi yêu cầu'
-                    }}
+                <p v-if="store.fieldErrors.message" class="mt-1 text-xs text-red-600">{{ store.fieldErrors.message }}
+                </p>
+            </div>
+            <div class="flex flex-wrap items-center justify-between gap-4 border-t border-slate-100 pt-5">
+                <p class="max-w-sm text-xs leading-5 text-slate-500">Không gửi mật khẩu, mã OTP hoặc thông tin thẻ trong
+                    nội dung liên hệ.</p><button type="submit" :disabled="store.submitting"
+                    class="inline-flex items-center gap-2 rounded-full bg-[#07532b] px-6 py-3 text-sm font-bold text-white disabled:opacity-50">
+                    <Icon :icon="store.submitting ? 'mdi:loading' : 'mdi:send-outline'"
+                        :class="{ 'animate-spin': store.submitting }" />
+                    {{ store.submitting ? 'Đang gửi...' : 'Gửi yêu cầu' }}
                 </button>
             </div>
         </form>

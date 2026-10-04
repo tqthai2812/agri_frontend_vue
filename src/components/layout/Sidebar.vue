@@ -72,6 +72,7 @@ async function handleLogout() {
 }
 
 const sections = [
+  { title: "HỖ TRỢ", items: [{ name: "admin-contacts", label: "Quản lý liên hệ", icon: "solar:chat-round-line-bold-duotone", permission: "contact.view" }] },
   {
     "title": "QUẢN LÝ",
     "items": [

@@ -6,6 +6,7 @@ const Categories = () => import("@/views/Categories.vue");
 const Suppliers = () => import("@/views/Suppliers.vue");
 const Artisans = () => import("@/views/Artisans.vue");
 const Orders = () => import("@/views/Orders.vue");
+const Contacts = () => import("@/views/Contacts.vue");
 const ProductReviews = () => import("@/views/ProductReviews.vue");
 const Inventory = () => import("@/views/Inventory.vue");
 const Gallery = () => import("@/views/Gallery.vue");
@@ -63,6 +64,12 @@ const adminRoutes = [
         name: "admin-orders",
         component: Orders,
         meta: { title: "Quản lý đơn hàng", requiredPermission: "order.view" },
+      },
+      {
+        path: "contacts",
+        name: "admin-contacts",
+        component: Contacts,
+        meta: { title: "Quản lý liên hệ", requiredPermission: "contact.view" },
       },
       {
         path: "reviews",

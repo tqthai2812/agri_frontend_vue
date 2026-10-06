@@ -16,6 +16,10 @@ const Roles = () => import("@/views/Roles.vue");
 const DeliveryMethods = () => import("@/views/DeliveryMethods.vue");
 const Discounts = () => import("@/views/Discounts.vue");
 
+const Expenses = () => import("@/views/Expenses.vue");
+const ExpenseCategories = () => import("@/views/ExpenseCategories.vue");
+const ProfitReport = () => import("@/views/ProfitReport.vue");
+
 const adminRoutes = [
   {
     path: "/admin",
@@ -23,6 +27,27 @@ const adminRoutes = [
     redirect: { name: "admin-dashboard" },
     meta: { requiresAuth: true, area: "admin" },
     children: [
+      {
+        path: "expenses",
+        name: "admin-expenses",
+        component: Expenses,
+        meta: { title: "Chi phí", requiredPermission: "expense.view" },
+      },
+      {
+        path: "expense-categories",
+        name: "admin-expense-categories",
+        component: ExpenseCategories,
+        meta: { title: "Danh mục chi phí", requiredPermission: "expense.view" },
+      },
+      {
+        path: "reports/profit",
+        name: "admin-profit-report",
+        component: ProfitReport,
+        meta: {
+          title: "Báo cáo lợi nhuận",
+          requiredPermission: "report.profit.view",
+        },
+      },
       {
         path: "dashboard",
         name: "admin-dashboard",

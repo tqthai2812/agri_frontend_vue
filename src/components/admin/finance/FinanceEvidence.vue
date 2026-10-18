@@ -3,6 +3,7 @@ import { ref, onMounted, onBeforeUnmount } from "vue";
 import api from "@/services/admin/finance.service";
 import { money, dateTime, errorText } from "@/composables/useFinance";
 import FinanceDialog from "./FinanceDialog.vue";
+import OrderPrintActions from "@/components/admin/orders/OrderPrintActions.vue";
 const props = defineProps({ kind: String, id: Number });
 defineEmits(["close"]);
 const data = ref(null),
@@ -38,6 +39,7 @@ onBeforeUnmount(() => abort.abort());
             <p v-if="data.measure?.issues?.length" class="fin-warning mt-3">
                 {{ data.measure.issues.join("; ") }}
             </p>
+            <OrderPrintActions v-if="kind === 'orders'" :order-id="id" class="mb-4" />
             <div class="fin-table-wrap mt-4">
                 <table>
                     <thead>

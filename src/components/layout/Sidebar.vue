@@ -128,6 +128,12 @@ const sections = [
     title: "QUẢN LÝ",
     items: [
       {
+        name: "admin-data-exports",
+        label: "Tệp đã xuất",
+        icon: "mdi:file-excel-outline",
+        permission: "export.view",
+      },
+      {
         name: "admin-dashboard",
         label: "Bảng điều khiển",
         icon: "solar:home-2-bold-duotone",
@@ -189,6 +195,12 @@ const sections = [
         label: "Nhà cung cấp",
         icon: "solar:delivery-bold-duotone",
         permission: "inventory.view",
+      },
+      {
+        name: "admin-inventory-report",
+        label: "Báo cáo kho",
+        icon: "solar:chart-square-bold-duotone",
+        permission: "report.inventory.view",
       },
     ],
   },

@@ -1,9 +1,10 @@
 <script setup>
-import { computed, onBeforeUnmount, watch } from "vue";
+import { computed, onBeforeUnmount, ref, watch } from "vue";
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import { useAppStore } from "@/stores/appStore";
 import { useDashboardStore } from "@/stores/admin/dashboardStore";
+import DashboardDailyReport from "@/components/admin/dashboard/DashboardDailyReport.vue";
 import DashboardSalesChart from "@/components/admin/dashboard/DashboardSalesChart.vue";
 
 const auth = useAuthStore();
@@ -14,6 +15,7 @@ const canView = computed(
 );
 const canViewOrders = computed(() => auth.hasPermission("order.view"));
 const data = computed(() => store.overview);
+const selectedMetric = ref("net_sales");
 const statusNames = {
   pending: "Chờ xác nhận",
   confirmed: "Đã xác nhận",
@@ -63,11 +65,80 @@ const unapplied = computed(
     (store.filters.date_from !== data.value.period.date_from ||
       store.filters.date_to !== data.value.period.date_to),
 );
+// Tiền từ API là decimal string; tính % bằng BigInt để không mất chữ số.
+function decimalUnits(value) {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "number" && !Number.isSafeInteger(value)) return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  const match = String(value).match(/^(-?)(\d+)(?:\.(\d{1,2}))?$/);
+  if (!match) return null;
+  const units =
+    BigInt(match[2]) * 100n + BigInt((match[3] || "").padEnd(2, "0"));
+  return match[1] ? -units : units;
+}
+function metricValue(source, key) {
+  return key === "created_orders"
+    ? source?.order_counts?.all
+    : source?.summary?.[key];
+}
+function metricChange(card) {
+  if (store.comparisonLoading)
+    return {
+      text: "…",
+      direction: "neutral",
+      hint: "Đang tải số liệu kỳ trước.",
+    };
+  if (store.comparisonError || !store.previousOverview)
+    return {
+      text: "—",
+      direction: "neutral",
+      hint: store.comparisonError || "Chưa có số liệu kỳ trước.",
+    };
+  const currentRaw = metricValue(data.value, card.key);
+  const previousRaw = metricValue(store.previousOverview, card.key);
+  const current = decimalUnits(currentRaw),
+    previous = decimalUnits(previousRaw);
+  if (current === null || previous === null)
+    return {
+      text: "—",
+      direction: "neutral",
+      hint: "Một trong hai kỳ chưa đủ dữ liệu, chưa thể tính % thay đổi.",
+    };
+  const prefix = `Kỳ trước: ${card.money ? money(previousRaw) : count(previousRaw)}. `;
+  const delta = current - previous;
+  const direction = delta > 0n ? "up" : delta < 0n ? "down" : "neutral";
+  if (delta === 0n)
+    return { text: "0%", direction, hint: prefix + "Không thay đổi." };
+  if (previous === 0n)
+    return {
+      text: "Từ 0",
+      direction,
+      hint: prefix + "Không tính % khi số kỳ trước bằng 0.",
+    };
+  // Với kỳ trước âm (ví dụ lỗ), mẫu số là trị tuyệt đối để hướng tăng/giảm không bị đảo.
+  const base = previous < 0n ? -previous : previous;
+  const absoluteDelta = delta < 0n ? -delta : delta;
+  const hundredths = (absoluteDelta * 10000n + base / 2n) / base;
+  const percent =
+    hundredths === 0n
+      ? "<0,01"
+      : `${(hundredths / 100n).toLocaleString("vi-VN")},${String(hundredths % 100n).padStart(2, "0")}`;
+  return {
+    text: `${delta > 0n ? "+" : "−"}${percent}%`,
+    direction,
+    hint:
+      prefix +
+      (previous < 0n
+        ? "% thay đổi tính trên trị tuyệt đối của số kỳ trước."
+        : "So với kỳ liền trước cùng số ngày."),
+  };
+}
 const cards = computed(() => {
   if (!data.value) return [];
   const s = data.value.summary;
   return [
     {
+      key: "created_orders",
       label: "Đơn tạo trong kỳ",
       value: count(data.value.order_counts.all),
       icon: "solar:cart-large-2-bold-duotone",
@@ -75,6 +146,7 @@ const cards = computed(() => {
       money: false,
     },
     {
+      key: "completed_orders",
       label: "Đơn hoàn thành trong kỳ",
       value: count(s.completed_orders),
       icon: "solar:check-circle-bold-duotone",
@@ -82,6 +154,7 @@ const cards = computed(() => {
       money: false,
     },
     {
+      key: "net_sales",
       label: "Doanh thu tiền hàng",
       value: money(s.net_sales),
       icon: "solar:wallet-money-bold-duotone",
@@ -89,6 +162,7 @@ const cards = computed(() => {
       money: true,
     },
     {
+      key: "shipping_charged",
       label: "Phí giao hàng trên đơn",
       value: money(s.shipping_charged),
       icon: "solar:delivery-bold-duotone",
@@ -96,6 +170,7 @@ const cards = computed(() => {
       money: true,
     },
     {
+      key: "cost_total",
       label: "Giá vốn hàng đã bán",
       value: money(s.cost_total),
       icon: "solar:box-bold-duotone",
@@ -106,14 +181,97 @@ const cards = computed(() => {
       money: true,
     },
     {
+      key: "gross_profit",
       label: "Lợi nhuận gộp tiền hàng",
       value: money(s.gross_profit),
       icon: "solar:chart-2-bold-duotone",
       note: "Tiền hàng sau giảm giá − giá vốn",
       money: true,
     },
-  ];
+  ].map((card) => ({ ...card, change: metricChange(card) }));
 });
+// Chọn chỉ số chỉ đổi dữ liệu đang hiển thị; không gọi lại API.
+const activeCard = computed(
+  () =>
+    cards.value.find((card) => card.key === selectedMetric.value) ||
+    cards.value[2],
+);
+const chartModel = computed(() => {
+  const metric = activeCard.value;
+  if (!data.value || !metric) return { rows: [], type: "line", mode: "daily" };
+  const key = metric.key;
+  if (key === "created_orders") {
+    return {
+      type: "bar",
+      mode: "status",
+      title: "Đơn tạo trong kỳ theo trạng thái",
+      description:
+        "Trạng thái hiện tại của các đơn được tạo trong kỳ đang xem.",
+      badge: "Theo trạng thái",
+      column: "Trạng thái",
+      rows: Object.entries(statusNames).map(([status, label]) => ({
+        key: status,
+        label,
+        fullLabel: label,
+        value: data.value.order_counts[status] ?? null,
+      })),
+    };
+  }
+  const daily = data.value.daily || [];
+  const optionalDailyMetric = ["shipping_charged", "cost_total"].includes(key);
+  // Hai chỉ số này có tổng trong summary; chỉ vẽ theo ngày nếu API thực sự trả trường đó.
+  const hasDailyField = daily.some((day) =>
+    Object.prototype.hasOwnProperty.call(day, key),
+  );
+  if (optionalDailyMetric && !hasDailyField) {
+    const period = `${date(data.value.period.date_from)} – ${date(data.value.period.date_to)}`;
+    return {
+      type: "bar",
+      mode: "total",
+      title: `${metric.label} trong kỳ`,
+      description: "Hiện chỉ có tổng trong kỳ, chưa có số liệu theo từng ngày.",
+      badge: "Tổng trong kỳ",
+      column: "Khoảng thời gian",
+      rows: [
+        {
+          key: "period",
+          label: "Tổng trong kỳ",
+          fullLabel: period,
+          value: data.value.summary[key] ?? null,
+        },
+      ],
+    };
+  }
+  const descriptions = {
+    completed_orders:
+      "Số đơn theo ngày hoàn thành, cùng khoảng ngày đang áp dụng.",
+    net_sales:
+      "Tiền hàng sau giảm giá của đơn hoàn thành; chưa gồm phí giao hàng.",
+    shipping_charged: "Phí giao hàng tính cho khách, theo ngày hoàn thành đơn.",
+    cost_total: "Giá vốn hàng đã bán, theo ngày hoàn thành đơn.",
+    gross_profit:
+      "Tiền hàng sau giảm giá trừ giá vốn; chưa trừ chi phí vận hành.",
+  };
+  return {
+    type: "line",
+    mode: "daily",
+    title: `${metric.label} theo ngày`,
+    description: descriptions[key],
+    badge: "Theo ngày",
+    column: "Ngày",
+    rows: daily.map((day) => ({
+      key: day.date,
+      label: `${day.date.slice(8, 10)}/${day.date.slice(5, 7)}`,
+      fullLabel: date(day.date),
+      value: day[key] ?? null,
+    })),
+  };
+});
+function chartValue(value) {
+  if (value === null || value === undefined || value === "")
+    return "Chưa đủ dữ liệu";
+  return activeCard.value?.money ? money(value) : count(value);
+}
 const warnings = computed(() => {
   if (!data.value) return [];
   const q = data.value.quality;
@@ -141,6 +299,7 @@ watch(
   [canView, () => auth.user?.id],
   () => {
     store.dispose();
+    selectedMetric.value = "net_sales";
     if (canView.value) refresh();
   },
   { immediate: true, flush: "sync" },
@@ -223,21 +382,56 @@ onBeforeUnmount(() => store.dispose());
             <li v-for="warning in warnings" :key="warning">{{ warning }}</li>
           </ul>
         </section>
-        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <article v-for="card in cards" :key="card.label"
-            class="min-w-0 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-2 text-xs text-text-light">
+          <span>Chọn chỉ số để xem biểu đồ</span>
+          <span v-if="store.comparisonPeriod" class="sm:text-right">
+            So với {{ store.comparisonPeriod.days }} ngày liền trước:
+            <strong class="font-semibold text-text-sec">{{ date(store.comparisonPeriod.date_from) }} –
+              {{ date(store.comparisonPeriod.date_to) }}</strong>
+          </span>
+        </div>
+        <p v-if="store.comparisonError" role="status"
+          class="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs text-amber-900">
+          {{ store.comparisonError }}
+          <button type="button" class="ml-2 font-bold underline" @click="store.retryComparison()">
+            Thử lại kỳ trước
+          </button>
+        </p>
+        <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3" role="group" aria-label="Chọn chỉ số cho biểu đồ">
+          <button v-for="card in cards" :key="card.key" type="button"
+            class="dashboard-metric min-w-0 rounded-2xl border border-border bg-surface p-5 text-left shadow-sm"
+            :class="{ 'is-active': selectedMetric === card.key }" :aria-pressed="selectedMetric === card.key"
+            :aria-label="`Xem biểu đồ: ${card.label}`" :aria-describedby="`metric-change-${card.key}`"
+            aria-controls="dashboard-metric-chart" @click="selectedMetric = card.key">
             <div class="flex items-start justify-between gap-3">
-              <p class="text-xs font-semibold text-text-light">
+              <p class="dashboard-metric-label text-xs font-semibold text-text-light">
                 {{ card.label }}
               </p>
               <Icon :icon="card.icon" class="shrink-0 text-2xl text-primary" />
             </div>
-            <strong class="mt-3 block break-words font-mono text-2xl font-bold text-text">{{ card.value }}</strong>
+            <div class="mt-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+              <strong class="min-w-0 break-words font-mono text-2xl font-bold text-text">{{ card.value }}</strong>
+              <span :id="`metric-change-${card.key}`"
+                class="dashboard-change ml-auto inline-flex shrink-0 items-center gap-0.5 text-xs font-semibold tabular-nums"
+                :class="`dashboard-change--${card.change.direction}`" :title="card.change.hint"
+                :aria-label="`${card.change.text}. ${card.change.hint}`" :data-metric-change="card.key">
+                <Icon v-if="card.change.direction !== 'neutral'" :icon="card.change.direction === 'up'
+                    ? 'mdi:arrow-top-right'
+                    : 'mdi:arrow-bottom-right'
+                  " class="text-sm" aria-hidden="true" />
+                {{ card.change.text }}
+              </span>
+            </div>
             <p class="mt-2 text-xs leading-5 text-text-light">
               {{ card.note }}
             </p>
-          </article>
+          </button>
         </div>
+        <p class="text-xs leading-5 text-text-light">
+          <template v-if="store.comparisonLoading">Đang tải kỳ trước để so sánh...</template>
+          <template v-else>“Từ 0”: kỳ trước bằng 0 nên không tính %. “—”: chưa đủ dữ liệu để
+            so sánh. Nếu kỳ trước âm, tỷ lệ tính trên trị tuyệt đối.</template>
+        </p>
         <p class="text-xs leading-6 text-text-light">
           Doanh thu và lợi nhuận tính theo
           <strong class="text-text">ngày hoàn thành</strong>, bao gồm đơn COD
@@ -256,41 +450,50 @@ onBeforeUnmount(() => store.dispose());
           }}</strong>. Đây là phần đã xác định trong kỳ.
         </div>
 
-        <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-          <div class="mb-4">
-            <h2 class="font-bold text-text">
-              Doanh thu và lợi nhuận theo ngày
-            </h2>
-            <p class="mt-1 text-xs text-text-light">
-              Đường lợi nhuận bị ngắt tại ngày chưa đủ dữ liệu tính lãi.
-            </p>
+        <section id="dashboard-metric-chart" aria-labelledby="dashboard-chart-title"
+          class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+          <div class="mb-5 flex flex-wrap items-start justify-between gap-3">
+            <div class="min-w-0">
+              <h2 id="dashboard-chart-title" class="font-bold text-text" aria-live="polite" aria-atomic="true">
+                {{ chartModel.title }}
+              </h2>
+              <p class="mt-1 text-xs leading-5 text-text-light">
+                {{ chartModel.description }}
+              </p>
+            </div>
+            <span
+              class="inline-flex shrink-0 items-center gap-2 rounded-full border border-red-500/20 bg-red-500/5 px-3 py-1.5 text-xs font-semibold text-red-500">
+              <span class="size-1.5 rounded-full bg-red-500" aria-hidden="true"></span>{{ chartModel.badge }}
+            </span>
           </div>
-          <DashboardSalesChart :daily="data.daily" :dark="app.darkMode" :format-money="money" />
+          <DashboardSalesChart :rows="chartModel.rows" :chart-type="chartModel.type" :label="activeCard.label"
+            :is-money="activeCard.money" :dark="app.darkMode" :format-value="chartValue" />
+          <p class="mt-3 text-xs leading-5 text-text-light">
+            Nhấp vào ô thống kê phía trên để đổi chỉ số.
+            <template v-if="chartModel.mode === 'daily'">Đường biểu đồ bị ngắt tại ngày chưa đủ dữ liệu.</template>
+          </p>
           <details class="mt-4 border-t border-border pt-4">
             <summary class="cursor-pointer text-sm font-semibold text-primary">
-              Xem bảng số liệu theo ngày
+              Xem bảng số liệu của chỉ số đang chọn
             </summary>
             <div class="mt-3 max-h-80 overflow-auto">
               <table class="w-full text-left text-xs">
                 <thead class="sticky top-0 bg-bg text-text-light">
                   <tr>
-                    <th class="p-3">Ngày</th>
-                    <th class="p-3 text-right">Đơn hoàn thành</th>
-                    <th class="p-3 text-right">Tiền hàng sau giảm</th>
-                    <th class="p-3 text-right">Lợi nhuận gộp</th>
+                    <th class="p-3">{{ chartModel.column }}</th>
+                    <th class="p-3 text-right">{{ activeCard.label }}</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="day in data.daily" :key="day.date" class="border-b border-border">
-                    <td class="whitespace-nowrap p-3">{{ date(day.date) }}</td>
-                    <td class="p-3 text-right">
-                      {{ count(day.completed_orders) }}
-                    </td>
+                  <tr v-for="row in chartModel.rows" :key="row.key" class="border-b border-border">
+                    <td class="whitespace-nowrap p-3">{{ row.fullLabel }}</td>
                     <td class="whitespace-nowrap p-3 text-right font-mono">
-                      {{ money(day.net_sales) }}
+                      {{ chartValue(row.value) }}
                     </td>
-                    <td class="whitespace-nowrap p-3 text-right font-mono">
-                      {{ money(day.gross_profit) }}
+                  </tr>
+                  <tr v-if="!chartModel.rows.length">
+                    <td colspan="2" class="p-5 text-center text-text-light">
+                      Chưa có dữ liệu cho khoảng ngày này.
                     </td>
                   </tr>
                 </tbody>
@@ -298,6 +501,9 @@ onBeforeUnmount(() => store.dispose());
             </div>
           </details>
         </section>
+
+        <DashboardDailyReport :rows="data.daily || []" :period="data.period" :disabled="store.loading"
+          :unapplied="Boolean(unapplied)" />
 
         <div class="grid gap-6 lg:grid-cols-2">
           <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
@@ -479,3 +685,68 @@ onBeforeUnmount(() => store.dispose());
     </template>
   </div>
 </template>
+
+<style scoped>
+.dashboard-change--up {
+  color: #16a34a;
+}
+
+.dashboard-change--down {
+  color: #ef4444;
+}
+
+.dashboard-change--neutral {
+  color: var(--color-text-light, #64748b);
+}
+
+.dashboard-metric {
+  position: relative;
+  overflow: hidden;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.dashboard-metric::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: #fc1919;
+  opacity: 0;
+  transition: opacity 160ms ease;
+}
+
+.dashboard-metric:hover {
+  border-color: rgba(252, 25, 25, 0.35);
+}
+
+.dashboard-metric.is-active {
+  border-color: rgba(252, 25, 25, 0.5);
+  box-shadow: 0 5px 18px rgba(252, 25, 25, 0.08);
+}
+
+.dashboard-metric.is-active::before {
+  opacity: 1;
+}
+
+.dashboard-metric.is-active .dashboard-metric-label {
+  color: #fc1919;
+}
+
+.dashboard-metric:focus-visible {
+  outline: 2px solid #fc1919;
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+
+  .dashboard-metric,
+  .dashboard-metric::before {
+    transition: none;
+  }
+}
+</style>

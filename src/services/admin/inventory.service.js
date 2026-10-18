@@ -23,6 +23,41 @@ class InventoryService {
     return apiClient.post("/api/v1/inventory-transactions", data);
   }
 
+  adjustmentContext(packageId, lotId, signal) {
+    return apiClient.get(
+      `/api/v1/inventory/${packageId}/lots/${lotId}/adjustment`,
+      { signal },
+    );
+  }
+
+  adjustmentEvent(eventKey, signal) {
+    return apiClient.get(`/api/v1/inventory-adjustments/${eventKey}`, {
+      signal,
+    });
+  }
+
+  async adjust(data, maySend = () => true) {
+    try {
+      await this.csrf();
+    } catch (error) {
+      error.inventoryPostStarted = false;
+      throw error;
+    }
+    if (!maySend()) {
+      const error = new Error(
+        "Phiên làm việc đã thay đổi. Chưa gửi điều chỉnh.",
+      );
+      error.inventoryPostStarted = false;
+      throw error;
+    }
+    try {
+      return await apiClient.post("/api/v1/inventory-transactions", data);
+    } catch (error) {
+      error.inventoryPostStarted = true;
+      throw error;
+    }
+  }
+
   getLots(packageId, params = {}) {
     return apiClient.get(`/api/v1/inventory/${packageId}/lots`, {
       params,

@@ -3,6 +3,7 @@ import { Icon } from "@iconify/vue";
 import { computed, onBeforeUnmount, onMounted } from "vue";
 import { useOrderStore } from "@/stores/admin/orderStore";
 import { useAuthStore } from "@/stores/shared/authStore";
+import OrderPrintActions from "@/components/admin/orders/OrderPrintActions.vue";
 const store = useOrderStore();
 const authStore = useAuthStore();
 const canEdit = computed(() =>
@@ -450,6 +451,7 @@ onBeforeUnmount(() => {
                   </button>
                 </div>
               </div>
+              <OrderPrintActions :order-id="Number(order.id)" :disabled="store.busy || actionOpen" />
               <div class="grid gap-4 md:grid-cols-3">
                 <article class="detail-card">
                   <h3>Khách hàng</h3>

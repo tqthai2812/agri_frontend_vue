@@ -8,11 +8,4 @@ export default {
     await apiClient.get("/sanctum/csrf-cookie");
     return apiClient[method](base + path, data);
   },
-  export(params, signal) {
-    return apiClient.get(base + "/reports/profit/export", {
-      params,
-      signal,
-      responseType: "blob",
-    });
-  },
 };

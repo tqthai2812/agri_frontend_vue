@@ -1,0 +1,368 @@
+.order-slip {
+    width: 210mm;
+    min-height: 297mm;
+    padding: 12mm;
+    box-sizing: border-box;
+    background: #fff;
+    color: #17212c;
+    font: 12px/1.5 Arial, "Segoe UI", sans-serif;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+}
+
+.order-slip *,
+.order-slip *::before,
+.order-slip *::after {
+    box-sizing: border-box;
+}
+
+.order-slip p,
+.order-slip h1,
+.order-slip dl,
+.order-slip dt,
+.order-slip dd {
+    margin: 0;
+}
+
+.order-slip strong {
+    font-weight: 700;
+}
+
+.order-slip-brand {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 24px;
+    border-bottom: 3px solid #c62828;
+    padding-bottom: 14px;
+}
+
+.order-slip-store {
+    display: block;
+    color: #b91c1c;
+    font-size: 25px;
+    letter-spacing: -.6px;
+    margin-bottom: 4px;
+}
+
+.order-slip-brand p {
+    color: #52606d;
+    font-size: 11px;
+}
+
+.order-slip-id {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    flex-shrink: 0;
+}
+
+.order-slip-id strong {
+    font-size: 17px;
+}
+
+.order-slip-id span {
+    color: #52606d;
+    font-size: 11px;
+    margin-top: 3px;
+}
+
+.order-slip-id .order-slip-copy {
+    padding: 1px 8px;
+    border: 1px solid #cbd5e1;
+    border-radius: 4px;
+}
+
+.order-slip h1 {
+    text-align: center;
+    font-size: 22px;
+    letter-spacing: .8px;
+    margin: 22px 0 12px;
+    color: #17212c;
+    font-weight: 700;
+}
+
+.order-slip-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    color: #52606d;
+    font-size: 11px;
+    margin-bottom: 18px;
+}
+
+.order-slip-meta span {
+    font-weight: 700;
+}
+
+.order-slip-receiver {
+    display: grid;
+    grid-template-columns: 1.3fr 1fr;
+    column-gap: 24px;
+    row-gap: 8px;
+    border: 1px solid #d7dde3;
+    border-radius: 5px;
+    padding: 14px;
+}
+
+.order-slip-receiver div {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    min-width: 0;
+}
+
+.order-slip-receiver span {
+    flex-shrink: 0;
+    color: #52606d;
+}
+
+.order-slip-receiver p,
+.order-slip-receiver strong {
+    overflow-wrap: anywhere;
+}
+
+.order-slip-address {
+    grid-column: 1 / -1;
+}
+
+.order-slip-payment {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 20px;
+    margin: 14px 0;
+    border: 1px solid #ead9b6;
+    background: #fffbf2;
+    padding: 10px 14px;
+    border-radius: 5px;
+}
+
+.order-slip-payment>div {
+    display: flex;
+    flex-direction: column;
+}
+
+.order-slip-payment span {
+    color: #52606d;
+    font-size: 11px;
+}
+
+.order-slip-paid {
+    border-color: #c5dfcf;
+    background: #f4faf6;
+}
+
+.order-slip-collect {
+    text-align: right;
+}
+
+.order-slip-collect strong {
+    font-size: 19px;
+}
+
+.order-slip-note {
+    color: #52606d;
+    font-size: 11px;
+    margin-bottom: 12px !important;
+}
+
+.order-slip-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+    margin-top: 14px;
+}
+
+.order-slip-table th {
+    text-align: left;
+    padding: 9px 7px;
+    border: 1px solid #cad2da;
+    background: #f3f5f7;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 700;
+}
+
+.order-slip-table td {
+    padding: 10px 7px;
+    border: 1px solid #d7dde3;
+    vertical-align: top;
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.order-slip-table small {
+    display: block;
+    font-size: 10px;
+    color: #52606d;
+    margin-top: 3px;
+}
+
+.order-slip-table .order-slip-index {
+    width: 6%;
+}
+
+.order-slip-picking th:nth-child(2) {
+    width: 33%;
+}
+
+.order-slip-picking th:nth-child(3) {
+    width: 20%;
+}
+
+.order-slip-picking th:nth-child(4) {
+    width: 7%;
+}
+
+.order-slip-picking th:nth-child(5) {
+    width: 27%;
+}
+
+.order-slip-picking th:nth-child(6) {
+    width: 7%;
+}
+
+.order-slip-delivery th:nth-child(2) {
+    width: 46%;
+}
+
+.order-slip-delivery th:nth-child(3) {
+    width: 8%;
+}
+
+.order-slip-delivery th:nth-child(4) {
+    width: 19%;
+}
+
+.order-slip-delivery th:nth-child(5) {
+    width: 21%;
+}
+
+.order-slip .order-slip-center {
+    text-align: center;
+}
+
+.order-slip .order-slip-right {
+    text-align: right;
+    font-variant-numeric: tabular-nums;
+}
+
+.order-slip-sku {
+    font-family: "Courier New", monospace;
+    font-size: 10px;
+    overflow-wrap: anywhere;
+}
+
+.order-slip-lot+.order-slip-lot {
+    margin-top: 7px;
+    padding-top: 7px;
+    border-top: 1px dashed #d7dde3;
+}
+
+.order-slip-check {
+    display: inline-block;
+    width: 13px;
+    height: 13px;
+    border: 1px solid #637282;
+    margin-top: 2px;
+}
+
+.order-slip-summary {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 24px;
+    margin-top: 14px;
+}
+
+.order-slip-quantity {
+    padding-top: 6px;
+}
+
+.order-slip-summary dl {
+    min-width: 270px;
+}
+
+.order-slip-summary dl div {
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 6px 0;
+}
+
+.order-slip-summary dd {
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+}
+
+.order-slip-total {
+    border-top: 1px solid #d7dde3;
+    margin-top: 4px;
+    font-size: 14px;
+}
+
+.order-slip-customer-note {
+    margin-top: 20px;
+    font-size: 11px;
+}
+
+.order-slip-customer-note p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    margin-top: 5px;
+}
+
+.order-slip-signatures {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 40px;
+    margin-top: 32px;
+    padding-bottom: 65px;
+    text-align: center;
+}
+
+.order-slip-signatures strong,
+.order-slip-signatures small {
+    display: block;
+}
+
+.order-slip-signatures small {
+    color: #52606d;
+    font-size: 10px;
+    margin-top: 3px;
+}
+
+@media print {
+    @page {
+        size: A4 portrait;
+        margin: 12mm;
+    }
+
+    html,
+    body {
+        margin: 0;
+        padding: 0;
+        background: #fff;
+    }
+
+    .order-slip {
+        width: auto;
+        min-height: 0;
+        padding: 0;
+    }
+
+    .order-slip-table thead {
+        display: table-header-group;
+    }
+
+    .order-slip-table tr,
+    .order-slip-brand,
+    .order-slip-receiver,
+    .order-slip-payment,
+    .order-slip-summary,
+    .order-slip-signatures {
+        break-inside: avoid;
+        page-break-inside: avoid;
+    }
+}

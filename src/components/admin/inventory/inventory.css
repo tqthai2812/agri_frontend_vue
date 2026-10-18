@@ -1,0 +1,61 @@
+@reference "../../../style.css";
+
+:where(.inventory-page, .inventory-panel) .stat-card {
+  @apply rounded-2xl border border-border bg-surface p-4 shadow-sm;
+}
+
+:where(.inventory-page, .inventory-panel) .stat-label {
+  @apply text-xs font-medium text-text-light;
+}
+
+:where(.inventory-page, .inventory-panel) .stat-value {
+  @apply mt-1 font-mono text-2xl font-bold;
+}
+
+:where(.inventory-page, .inventory-panel) .search-box {
+  @apply flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2;
+}
+
+:where(.inventory-page, .inventory-panel) .search-input {
+  @apply w-full bg-transparent text-sm outline-none;
+}
+
+:where(.inventory-page, .inventory-panel) .table-th {
+  @apply p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light;
+}
+
+:where(.inventory-page, .inventory-panel) .table-td {
+  @apply p-3 align-middle text-sm;
+}
+
+:where(.inventory-page, .inventory-panel) .table-row {
+  @apply border-b border-border transition hover:bg-primary/5;
+}
+
+:where(.inventory-page, .inventory-panel) .empty-cell {
+  @apply p-8 text-center text-sm text-text-light;
+}
+
+:where(.inventory-page, .inventory-panel) .field-grid {
+  @apply grid gap-4 sm:grid-cols-2;
+}
+
+:where(.inventory-page, .inventory-panel) .field {
+  @apply flex flex-col gap-2 text-sm;
+}
+
+:where(.inventory-page, .inventory-panel) .notice-error {
+  @apply rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700;
+}
+
+:where(.inventory-page, .inventory-panel) .notice-success {
+  @apply rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700;
+}
+
+:where(.inventory-page, .inventory-panel) .notice-warning {
+  @apply rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900;
+}
+
+:where(.inventory-page, .inventory-panel) button:disabled {
+  @apply cursor-not-allowed opacity-50;
+}

@@ -1,37 +1,33 @@
 <script setup>
-import {
-    ref,
-    reactive,
-    computed,
-    onMounted,
-    onBeforeUnmount,
-    watch,
-} from "vue";
+import { ref, reactive, computed, onMounted, watch } from "vue";
 import { useRouter } from "vue-router";
-import api from "@/services/admin/finance.service";
 import {
     useFinance,
     money,
     dateTime,
     monthStart,
     today,
-    errorText,
     sourceLabel,
 } from "@/composables/useFinance";
+import ReportExportActions from "@/components/admin/exports/ReportExportActions.vue";
 import Chart from "@/components/admin/finance/ProfitChart.vue";
 import Pager from "@/components/admin/finance/FinancePagination.vue";
 import Evidence from "@/components/admin/finance/FinanceEvidence.vue";
+import SkuProfitTable from "@/components/admin/finance/SkuProfitTable.vue";
 import "@/assets/finance.css";
 const { auth, allowed, can, data, loading, error, load } =
     useFinance("report.profit.view");
 const router = useRouter();
 const dates = reactive({ date_from: monthStart(), date_to: today() }),
     tab = ref("summary"),
-    exporting = ref(false),
     evidence = ref(null);
-let exportController;
-let applied = { ...dates },
-    pages = { orders_page: 1, expenses_page: 1, issues_page: 1 };
+const applied = reactive({ ...dates });
+const skuFilters = reactive({
+    search: "",
+    state: "all",
+    sort: "net_sales_desc",
+});
+let pages = { orders_page: 1, expenses_page: 1, issues_page: 1 };
 const result = computed(() => data.value?.data),
     dirty = computed(
         () =>
@@ -41,6 +37,7 @@ const result = computed(() => data.value?.data),
 const tabs = [
     ["summary", "Tổng quan"],
     ["orders", "Đơn hoàn thành"],
+    ["skus", "Theo SKU"],
     ["expenses", "Khoản chi ghi sổ"],
     ["categories", "Theo danh mục"],
     ["issues", "Cần đối chiếu"],
@@ -55,7 +52,7 @@ const kpis = [
 ];
 async function fetchReport(apply = false) {
     if (apply) {
-        applied = { ...dates };
+        Object.assign(applied, dates);
         pages = { orders_page: 1, expenses_page: 1, issues_page: 1 };
     }
     await load("/reports/profit", { ...applied, ...pages });
@@ -102,49 +99,27 @@ function category(id) {
         },
     });
 }
-async function exportCsv(set = tab.value) {
-    if (exporting.value) return;
-    exporting.value = true;
-    error.value = "";
-    exportController = new AbortController();
-    const actor = auth.user?.id;
-    try {
-        const r = await api.export(
-            { ...applied, dataset: set },
-            exportController.signal,
-        );
-        if (
-            !allowed.value ||
-            actor !== auth.user?.id ||
-            exportController.signal.aborted
-        )
-            return;
-        const url = URL.createObjectURL(r.data);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `loi-nhuan-${set}-${applied.date_from}-${applied.date_to}.csv`;
-        document.body.append(a);
-        a.click();
-        a.remove();
-        setTimeout(() => URL.revokeObjectURL(url), 1000);
-    } catch (e) {
-        if (e.code !== "ERR_CANCELED" && e.name !== "AbortError")
-            error.value = await errorText(e);
-    } finally {
-        exporting.value = false;
-    }
-}
 watch(
     () => [auth.user?.id, allowed.value],
     () => {
         evidence.value = null;
-        exportController?.abort();
+        Object.assign(skuFilters, {
+            search: "",
+            state: "all",
+            sort: "net_sales_desc",
+        });
+        if (allowed.value) fetchReport();
     },
 );
-onBeforeUnmount(() => exportController?.abort());
-watch(allowed, (v) => {
-    if (v) fetchReport();
-});
+const exportFilters = computed(() => ({
+    date_from: result.value?.period.date_from,
+    date_to: result.value?.period.date_to,
+    dataset: tab.value,
+}));
+const dailyExportFilters = computed(() => ({
+    ...exportFilters.value,
+    dataset: "daily",
+}));
 onMounted(() => fetchReport());
 </script>
 <template>
@@ -187,10 +162,9 @@ onMounted(() => fetchReport());
                         {{ result.period.date_to }} · Lập lúc
                         {{ dateTime(result.generated_at) }}
                     </p>
-                    <button v-if="can('report.profit.export')" class="fin-btn" :disabled="exporting"
-                        @click="exportCsv()">
-                        {{ exporting ? "Đang xuất..." : "Xuất tab này (CSV)" }}
-                    </button>
+                    <ReportExportActions v-if="tab !== 'skus' && can('report.profit.export')"
+                        report-type="profit_report" required-permission="report.profit.export" :filters="exportFilters"
+                        :disabled="loading || dirty" button-label="Xuất tab này (Excel)" />
                 </div>
                 <p v-if="
                     !result.quality.profit_complete ||
@@ -235,10 +209,10 @@ onMounted(() => fetchReport());
                             <summary class="fin-link cursor-pointer">
                                 Xem bảng số liệu theo ngày
                             </summary>
-                            <button v-if="can('report.profit.export')" class="fin-btn my-3" :disabled="exporting"
-                                @click="exportCsv('daily')">
-                                Xuất bảng ngày
-                            </button>
+                            <ReportExportActions v-if="can('report.profit.export')" class="my-3"
+                                report-type="profit_report" required-permission="report.profit.export"
+                                :filters="dailyExportFilters" :disabled="loading || dirty"
+                                button-label="Xuất bảng ngày (Excel)" />
                             <div class="fin-table-wrap">
                                 <table>
                                     <thead>
@@ -272,6 +246,8 @@ onMounted(() => fetchReport());
                         chung không tự phân bổ cho từng sản phẩm.
                     </p>
                 </template>
+                <SkuProfitTable v-else-if="tab === 'skus'" :period="result.period" :disabled="loading || dirty"
+                    :initial-filters="skuFilters" @filters="Object.assign(skuFilters, $event)" />
                 <div v-else-if="tab === 'orders'" class="fin-card">
                     <div class="fin-table-wrap">
                         <table>
@@ -304,7 +280,7 @@ onMounted(() => fetchReport());
                                                 paid: "Đã thu hợp lệ",
                                                 cod_uncollected: "COD chưa thu",
                                                 review: "Cần đối chiếu",
-                                            }[o.payment_state]
+                                        }[o.payment_state]
                                         }}
                                     </td>
                                 </tr>

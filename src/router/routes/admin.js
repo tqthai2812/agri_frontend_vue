@@ -19,6 +19,9 @@ const Discounts = () => import("@/views/Discounts.vue");
 const Expenses = () => import("@/views/Expenses.vue");
 const ExpenseCategories = () => import("@/views/ExpenseCategories.vue");
 const ProfitReport = () => import("@/views/ProfitReport.vue");
+const InventoryReport = () => import("@/views/InventoryReport.vue");
+
+const DataExports = () => import("@/views/DataExports.vue");
 
 const adminRoutes = [
   {
@@ -27,6 +30,15 @@ const adminRoutes = [
     redirect: { name: "admin-dashboard" },
     meta: { requiresAuth: true, area: "admin" },
     children: [
+      {
+        path: "data-exports",
+        name: "admin-data-exports",
+        component: DataExports,
+        meta: {
+          title: "Tệp đã xuất",
+          requiredPermission: "export.view",
+        },
+      },
       {
         path: "expenses",
         name: "admin-expenses",
@@ -148,6 +160,16 @@ const adminRoutes = [
         meta: {
           title: "Quản lý giảm giá",
           requiredPermission: "discount.view",
+        },
+      },
+
+      {
+        path: "reports/inventory",
+        name: "admin-inventory-report",
+        component: InventoryReport,
+        meta: {
+          title: "Báo cáo kho",
+          requiredPermission: "report.inventory.view",
         },
       },
     ],

@@ -158,15 +158,19 @@ onBeforeUnmount(() => {
                         </h2>
                         <p class="mt-1 text-xs text-text-light">Xem trước bản in A4</p>
                     </div>
-                    <button type="button" class="btn-outline-icon" aria-label="Đóng phiếu in" :disabled="printing"
-                        @click="close"><span aria-hidden="true">×</span></button>
+                    <button type="button" class="btn-outline-icon cursor-pointer disabled:cursor-not-allowed"
+                        aria-label="Đóng phiếu in" :disabled="printing" @click="close"><span
+                            aria-hidden="true">×</span></button>
                 </header>
                 <div class="flex flex-wrap gap-2 border-b border-border px-4 py-3 sm:px-5">
-                    <button v-if="canPick" type="button" class="order-print-tab" :class="{ active: type === 'picking' }"
-                        :aria-pressed="type === 'picking'" :disabled="printing" @click="type = 'picking'">Phiếu soạn
+                    <button v-if="canPick" type="button"
+                        class="order-print-tab cursor-pointer disabled:cursor-not-allowed"
+                        :class="{ active: type === 'picking' }" :aria-pressed="type === 'picking'" :disabled="printing"
+                        @click="type = 'picking'">Phiếu soạn
                         hàng</button>
-                    <button type="button" class="order-print-tab" :class="{ active: type === 'delivery' }"
-                        :aria-pressed="type === 'delivery'" :disabled="printing" @click="type = 'delivery'">Phiếu giao
+                    <button type="button" class="order-print-tab cursor-pointer disabled:cursor-not-allowed"
+                        :class="{ active: type === 'delivery' }" :aria-pressed="type === 'delivery'"
+                        :disabled="printing" @click="type = 'delivery'">Phiếu giao
                         hàng</button>
                 </div>
                 <div class="order-print-content bg-bg" :aria-busy="loading">
@@ -183,12 +187,14 @@ onBeforeUnmount(() => {
                     </div>
                 </div>
                 <footer class="order-print-toolbar border-border">
-                    <button type="button" class="btn-outline-sm" :disabled="loading || printing" @click="load">Tải lại
+                    <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+                        :disabled="loading || printing" @click="load">Tải lại
                         phiếu</button>
                     <div class="flex gap-2">
-                        <button type="button" class="btn-outline-sm" :disabled="printing" @click="close">Đóng</button>
-                        <button type="button" class="btn-primary inline-flex items-center gap-2" :disabled="!canPrint"
-                            @click="print">
+                        <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+                            :disabled="printing" @click="close">Đóng</button>
+                        <button type="button" class="btn-primary cursor-pointer disabled:cursor-not-allowed"
+                            :disabled="!canPrint" @click="print">
                             <Icon icon="mdi:printer-outline" class="text-lg" />
                             {{ printing ? 'Đang mở bản in...' : 'In phiếu' }}
                         </button>
@@ -253,8 +259,9 @@ footer.order-print-toolbar {
 .order-print-tab {
     border-radius: 8px;
     border: 1px solid var(--color-border, #e2e8f0);
-    padding: 8px 12px;
-    font-size: 13px;
+    padding: 8px 16px;
+    font-size: 14px;
+    font-weight: 600;
 }
 
 .order-print-tab.active {
@@ -283,11 +290,6 @@ footer.order-print-toolbar {
     background: #fffbeb;
     color: #92400e;
     border: 1px solid #fde68a;
-}
-
-button:disabled {
-    cursor: not-allowed;
-    opacity: .5;
 }
 
 @media (max-width: 640px) {

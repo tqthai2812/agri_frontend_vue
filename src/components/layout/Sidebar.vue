@@ -202,6 +202,13 @@ const sections = [
         icon: "solar:chart-square-bold-duotone",
         permission: "report.inventory.view",
       },
+
+      {
+        name: "admin-inventory-documents",
+        label: "Phiếu kho",
+        icon: "solar:clipboard-list-bold-duotone",
+        permission: "inventory.view",
+      },
     ],
   },
   {

@@ -408,7 +408,7 @@
 <script setup>
 import { Icon } from "@iconify/vue";
 import { computed, onMounted } from "vue";
-import { useDiscountStore } from "@/stores/discountStore";
+import { useDiscountStore } from "@/stores/admin/discountStore";
 import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useDiscountStore();

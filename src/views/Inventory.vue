@@ -37,10 +37,16 @@ const {
         </p>
       </div>
 
-      <button type="button" class="btn-outline-sm" :disabled="store.loading" @click="reload">
-        <Icon icon="solar:refresh-bold" :class="{ 'animate-spin': store.loading }" />
-        Tải lại
-      </button>
+      <div class="flex flex-wrap items-center gap-2">
+        <RouterLink :to="{ name: 'admin-inventory-documents' }" class="btn-outline-sm">
+          <Icon icon="solar:clipboard-list-bold-duotone" />
+          Phiếu kho
+        </RouterLink>
+        <button type="button" class="btn-outline-sm" :disabled="store.loading" @click="reload">
+          <Icon icon="solar:refresh-bold" :class="{ 'animate-spin': store.loading }" />
+          Tải lại
+        </button>
+      </div>
     </div>
 
     <div class="mb-6 grid grid-cols-2 gap-4 sm:grid-cols-4">

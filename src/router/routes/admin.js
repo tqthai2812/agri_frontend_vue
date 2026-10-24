@@ -39,6 +39,16 @@ const adminRoutes = [
           requiredPermission: "export.view",
         },
       },
+
+      {
+        path: "inventory-documents",
+        name: "admin-inventory-documents",
+        component: () => import("@/views/InventoryDocuments.vue"),
+        meta: {
+          title: "Phiếu kho",
+          requiredPermission: "inventory.view",
+        },
+      },
       {
         path: "expenses",
         name: "admin-expenses",

@@ -44,21 +44,25 @@ const nextStatuses = computed(() => store.getNextStatuses(order.value));
                             </option>
                         </select>
                     </label>
+                    <p v-if="store.statusForm.order_status === 'confirmed'" class="text-sm text-text-light">
+                        Xác nhận sẽ chốt lô soạn hàng theo FEFO và giữ cho đơn này; tồn vật
+                        lý chưa giảm.
+                    </p>
                     <p v-if="store.statusForm.order_status === 'shipping'" class="text-sm text-text-light">
-                        Chuyển sang đang giao sẽ xuất kho.
+                        Chuyển sang đang giao sẽ xuất đúng các lô đã chốt trên phiếu soạn.
                         Đơn đang giao không thể hủy bằng thao tác này.
                     </p>
                     <p v-if="store.statusForm.order_status === 'cancelled'" class="text-sm text-text-light">
-                        Hủy đơn sẽ giải phóng hàng đang giữ.
-                        Đơn đã hủy không thể mở lại.
+                        Hủy đơn sẽ giải phóng hàng đang giữ và các lô đã chốt cho phiếu
+                        soạn. Đơn đã hủy không thể mở lại.
                     </p>
                     <p v-if="
                         store.statusForm.order_status === 'completed' &&
                         order?.payment_method === 'COD' &&
                         !store.isPaid(order)
                     " class="text-sm text-text-light">
-                        Hoàn thành ghi nhận đã giao hàng.
-                        Tiền COD cần được xác nhận riêng khi đã thực thu.
+                        Hoàn thành ghi nhận đã giao hàng. Tiền COD cần được xác nhận riêng
+                        khi đã thực thu.
                     </p>
                     <label class="block">
                         <span class="form-label">Ghi chú</span>
@@ -76,14 +80,10 @@ const nextStatuses = computed(() => store.getNextStatuses(order.value));
                                 store.busy ||
                                 !store.detailReady ||
                                 !nextStatuses.some(
-                                    (item) => item.value === store.statusForm.order_status
+                                    (item) => item.value === store.statusForm.order_status,
                                 )
                                 ">
-                            {{
-                                store.savingStatus
-                                    ? "Đang lưu..."
-                                    : "Lưu trạng thái"
-                            }}
+                            {{ store.savingStatus ? "Đang lưu..." : "Lưu trạng thái" }}
                         </button>
                     </div>
                 </form>

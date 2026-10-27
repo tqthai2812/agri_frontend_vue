@@ -1,5 +1,12 @@
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue";
+import {
+    computed,
+    nextTick,
+    onBeforeUnmount,
+    onMounted,
+    ref,
+    watch,
+} from "vue";
 import { Icon } from "@iconify/vue";
 import apiClient from "@/api/client";
 import { useAuthStore } from "@/stores/shared/authStore";
@@ -16,16 +23,36 @@ const type = ref(props.initialType);
 const payload = ref(null);
 const loading = ref(false);
 const printing = ref(false);
+const planning = ref(false);
 const error = ref("");
 const changed = ref("");
 const panel = ref(null);
 const paper = ref(null);
 const canPick = computed(() => !!auth.hasPermission("inventory.view"));
-const allowed = computed(() => !!auth.hasPermission("order.view")
-    && (type.value !== "picking" || canPick.value));
-const title = computed(() => type.value === "picking" ? "Phiếu soạn hàng" : "Phiếu giao hàng");
-const canPrint = computed(() => allowed.value && payload.value?.can_print === true
-    && !loading.value && !printing.value && !error.value);
+const allowed = computed(
+    () =>
+        !!auth.hasPermission("order.view") &&
+        (type.value !== "picking" || canPick.value),
+);
+const title = computed(() =>
+    type.value === "picking" ? "Phiếu soạn hàng" : "Phiếu giao hàng",
+);
+const canPrint = computed(
+    () =>
+        allowed.value &&
+        payload.value?.can_print === true &&
+        !loading.value &&
+        !printing.value &&
+        !planning.value &&
+        !error.value,
+);
+const canPrepare = computed(
+    () =>
+        allowed.value &&
+        type.value === "picking" &&
+        auth.hasPermission("order.update") &&
+        payload.value?.can_prepare_picking === true,
+);
 let controller;
 let version = 0;
 let previousFocus;
@@ -45,26 +72,97 @@ async function load() {
     error.value = "";
     changed.value = "";
     try {
-        const response = await apiClient.get(`/api/v1/orders/${props.orderId}/print`, {
-            params: { type: type.value }, signal: controller.signal,
-        });
+        const response = await apiClient.get(
+            `/api/v1/orders/${props.orderId}/print`,
+            {
+                params: { type: type.value },
+                signal: controller.signal,
+            },
+        );
         if (disposed || request !== version || !allowed.value) return null;
         const data = response.data?.data;
-        if (Number(data?.id) !== props.orderId || data.type !== type.value
-            || !Array.isArray(data.items) || !Array.isArray(data.issues)
-            || typeof data.can_print !== "boolean") {
+        if (
+            Number(data?.id) !== props.orderId ||
+            data.type !== type.value ||
+            !Array.isArray(data.items) ||
+            !Array.isArray(data.issues) ||
+            typeof data.can_print !== "boolean"
+        ) {
             throw new Error("Dữ liệu phiếu in không hợp lệ.");
         }
         payload.value = data;
         return data;
     } catch (cause) {
-        if (disposed || request !== version || cause?.code === "ERR_CANCELED"
-            || cause?.name === "AbortError" || cause?.name === "CanceledError") return null;
+        if (
+            disposed ||
+            request !== version ||
+            cause?.code === "ERR_CANCELED" ||
+            cause?.name === "AbortError" ||
+            cause?.name === "CanceledError"
+        )
+            return null;
         payload.value = null;
-        error.value = cause?.response?.data?.message || cause.message || "Không tải được phiếu in.";
+        error.value =
+            cause?.response?.data?.message ||
+            cause.message ||
+            "Không tải được phiếu in.";
         return null;
     } finally {
         if (!disposed && request === version) loading.value = false;
+    }
+}
+
+async function preparePicking() {
+    if (!canPrepare.value || loading.value || printing.value || planning.value)
+        return;
+    const reallocate = payload.value.has_picking_plan === true;
+    if (
+        reallocate &&
+        !window.confirm(
+            "Chọn lại lô soạn hàng? Phiếu soạn cũ sẽ không còn dùng được; cần kiểm tra hàng và in lại phiếu mới.",
+        )
+    )
+        return;
+    const owner = auth.user?.id;
+    const orderId = props.orderId;
+    const requestVersion = version;
+    const current = () =>
+        !disposed &&
+        owner === auth.user?.id &&
+        orderId === props.orderId &&
+        requestVersion === version &&
+        allowed.value &&
+        auth.hasPermission("order.update");
+    planning.value = true;
+    error.value = "";
+    changed.value = "";
+    let sent = false;
+    try {
+        await apiClient.get("/sanctum/csrf-cookie");
+        if (!current()) return;
+        sent = true;
+        await apiClient.post(`/api/v1/orders/${orderId}/picking-plan`, {
+            reallocate,
+        });
+        if (!current()) return;
+        const fresh = await load();
+        if (fresh)
+            changed.value = reallocate
+                ? "Đã chọn lại lô. Kiểm tra hàng theo phiếu mới; phiếu cũ không còn sử dụng."
+                : "Đã chốt lô cho đơn. Tồn vật lý chưa thay đổi.";
+    } catch (cause) {
+        if (!current()) return;
+        const status = cause?.response?.status;
+        error.value =
+            sent && (!status || status >= 500)
+                ? "Chưa xác định được kết quả chốt lô. Bấm Tải lại phiếu để kiểm tra trước khi thao tác tiếp."
+                : cause?.response?.data?.message ||
+                cause.message ||
+                "Không chốt được lô soạn hàng.";
+        const messages = Object.values(cause?.response?.data?.errors || {}).flat();
+        if (messages.length) error.value = messages.join(" ");
+    } finally {
+        if (!disposed) planning.value = false;
     }
 }
 
@@ -74,9 +172,11 @@ async function print() {
     const before = signature(payload.value);
     try {
         const fresh = await load();
-        if (!fresh || disposed || !allowed.value || fresh.can_print !== true) return;
+        if (!fresh || disposed || !allowed.value || fresh.can_print !== true)
+            return;
         if (signature(fresh) !== before) {
-            changed.value = "Dữ liệu đơn vừa thay đổi. Kiểm tra lại phiếu rồi bấm In.";
+            changed.value =
+                "Dữ liệu đơn vừa thay đổi. Kiểm tra lại phiếu rồi bấm In.";
             return;
         }
         await nextTick();
@@ -93,7 +193,7 @@ async function print() {
 }
 
 function close() {
-    if (!printing.value) emit("close");
+    if (!printing.value && !planning.value) emit("close");
 }
 
 function keys(event) {
@@ -105,20 +205,43 @@ function keys(event) {
     }
     if (event.key !== "Tab" || !panel.value) return;
     event.stopImmediatePropagation();
-    const list = [...panel.value.querySelectorAll(
-        'button:not([disabled]),a[href],[tabindex="0"]',
-    )].filter((element) => element.getClientRects().length);
+    const list = [
+        ...panel.value.querySelectorAll(
+            'button:not([disabled]),a[href],[tabindex="0"]',
+        ),
+    ].filter((element) => element.getClientRects().length);
     const first = list[0];
     const last = list.at(-1);
-    if (!first) { event.preventDefault(); panel.value.focus(); return; }
-    if (event.shiftKey && (document.activeElement === first || !panel.value.contains(document.activeElement))) {
-        event.preventDefault(); last.focus();
-    } else if (!event.shiftKey && (document.activeElement === last || !panel.value.contains(document.activeElement))) {
-        event.preventDefault(); first.focus();
+    if (!first) {
+        event.preventDefault();
+        panel.value.focus();
+        return;
+    }
+    if (
+        event.shiftKey &&
+        (document.activeElement === first ||
+            !panel.value.contains(document.activeElement))
+    ) {
+        event.preventDefault();
+        last.focus();
+    } else if (
+        !event.shiftKey &&
+        (document.activeElement === last ||
+            !panel.value.contains(document.activeElement))
+    ) {
+        event.preventDefault();
+        first.focus();
     }
 }
 
-watch(type, () => { payload.value = null; load(); }, { immediate: true });
+watch(
+    type,
+    () => {
+        payload.value = null;
+        load();
+    },
+    { immediate: true },
+);
 watch([() => auth.user?.id, allowed, () => props.orderId], () => {
     controller?.abort();
     version++;
@@ -154,31 +277,41 @@ onBeforeUnmount(() => {
                 tabindex="-1" class="order-print-panel bg-surface text-text">
                 <header class="order-print-toolbar border-border">
                     <div>
-                        <h2 class="text-lg font-bold">{{ title }} <span class="text-primary">{{ payload?.code }}</span>
+                        <h2 class="text-lg font-bold">
+                            {{ title }} <span class="text-primary">{{ payload?.code }}</span>
                         </h2>
                         <p class="mt-1 text-xs text-text-light">Xem trước bản in A4</p>
                     </div>
                     <button type="button" class="btn-outline-icon cursor-pointer disabled:cursor-not-allowed"
-                        aria-label="Đóng phiếu in" :disabled="printing" @click="close"><span
-                            aria-hidden="true">×</span></button>
+                        aria-label="Đóng phiếu in" :disabled="printing || planning" @click="close">
+                        <span aria-hidden="true">×</span>
+                    </button>
                 </header>
                 <div class="flex flex-wrap gap-2 border-b border-border px-4 py-3 sm:px-5">
                     <button v-if="canPick" type="button"
                         class="order-print-tab cursor-pointer disabled:cursor-not-allowed"
-                        :class="{ active: type === 'picking' }" :aria-pressed="type === 'picking'" :disabled="printing"
-                        @click="type = 'picking'">Phiếu soạn
-                        hàng</button>
+                        :class="{ active: type === 'picking' }" :aria-pressed="type === 'picking'"
+                        :disabled="printing || planning" @click="type = 'picking'">
+                        Phiếu soạn hàng
+                    </button>
                     <button type="button" class="order-print-tab cursor-pointer disabled:cursor-not-allowed"
                         :class="{ active: type === 'delivery' }" :aria-pressed="type === 'delivery'"
-                        :disabled="printing" @click="type = 'delivery'">Phiếu giao
-                        hàng</button>
+                        :disabled="printing || planning" @click="type = 'delivery'">
+                        Phiếu giao hàng
+                    </button>
                 </div>
                 <div class="order-print-content bg-bg" :aria-busy="loading">
                     <p v-if="loading" role="status" class="p-4 text-center text-sm text-text-light">
-                        {{ printing ? 'Đang kiểm tra dữ liệu trước khi in...' : 'Đang tải phiếu...' }}
+                        {{
+                            printing
+                                ? "Đang kiểm tra dữ liệu trước khi in..."
+                                : "Đang tải phiếu..."
+                        }}
                     </p>
                     <p v-if="error" role="alert" class="order-print-error">{{ error }}</p>
-                    <p v-if="changed" role="status" class="order-print-warning">{{ changed }}</p>
+                    <p v-if="changed" role="status" class="order-print-warning">
+                        {{ changed }}
+                    </p>
                     <ul v-if="payload?.issues.length" role="alert" class="order-print-warning list-inside list-disc">
                         <li v-for="issue in payload.issues" :key="issue">{{ issue }}</li>
                     </ul>
@@ -188,15 +321,29 @@ onBeforeUnmount(() => {
                 </div>
                 <footer class="order-print-toolbar border-border">
                     <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
-                        :disabled="loading || printing" @click="load">Tải lại
-                        phiếu</button>
-                    <div class="flex gap-2">
+                        :disabled="loading || printing || planning" @click="load">
+                        Tải lại phiếu
+                    </button>
+                    <div class="flex flex-wrap gap-2">
+                        <button v-if="canPrepare" type="button"
+                            class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+                            :disabled="loading || printing || planning" @click="preparePicking">
+                            {{
+                                planning
+                                    ? "Đang chốt lô..."
+                                    : payload.has_picking_plan
+                                        ? "Chọn lại lô"
+                                        : "Chốt lô soạn hàng"
+                            }}
+                        </button>
                         <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
-                            :disabled="printing" @click="close">Đóng</button>
+                            :disabled="printing || planning" @click="close">
+                            Đóng
+                        </button>
                         <button type="button" class="btn-primary cursor-pointer disabled:cursor-not-allowed"
                             :disabled="!canPrint" @click="print">
                             <Icon icon="mdi:printer-outline" class="text-lg" />
-                            {{ printing ? 'Đang mở bản in...' : 'In phiếu' }}
+                            {{ printing ? "Đang mở bản in..." : "In phiếu" }}
                         </button>
                     </div>
                 </footer>

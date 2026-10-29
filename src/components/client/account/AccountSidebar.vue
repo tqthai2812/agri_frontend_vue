@@ -43,6 +43,12 @@ const navItems = [
         description: 'Theo dõi đơn hàng',
         icon: 'mdi:clipboard-text-outline',
     },
+    {
+        name: 'account-vouchers',
+        label: 'Kho voucher',
+        description: 'Ưu đãi dành cho bạn',
+        icon: 'mdi:ticket-percent-outline',
+    },
 ]
 
 const currentName = computed(() => {

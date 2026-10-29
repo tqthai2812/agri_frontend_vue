@@ -64,6 +64,13 @@ class InventoryService {
     });
   }
 
+  getReservations(packageId, params = {}, signal) {
+    return apiClient.get(`/api/v1/inventory/${packageId}/reservations`, {
+      params,
+      signal,
+    });
+  }
+
   async initializeLots(packageId, data) {
     await this.csrf();
 

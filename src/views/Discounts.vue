@@ -71,12 +71,20 @@
                         class="search-input" @input="handleSearch" />
                 </div>
 
+                <select v-model="store.filters.discount_scope" class="filter-select" @change="handleFilterChange">
+                    <option value="">Tất cả loại voucher</option>
+                    <option value="order">Toàn sàn</option>
+                    <option value="lot">Xả kho</option>
+                </select>
                 <select v-model="store.filters.status" class="filter-select flex-1 sm:flex-none"
                     @change="handleFilterChange">
                     <option value="">Tất cả trạng thái</option>
                     <option value="available">Có hiệu lực</option>
                     <option value="expired">Hết hạn</option>
                     <option value="used_up">Hết lượt</option>
+                    <option value="scheduled">Chưa bắt đầu</option>
+                    <option value="out_of_stock">Hết hàng có thể bán</option>
+                    <option value="stock_review">Cần đối chiếu kho</option>
                 </select>
 
                 <select v-model="store.filters.is_active" class="filter-select flex-1 sm:flex-none"
@@ -107,12 +115,12 @@
                             <th class="table-th">Mô tả</th>
                             <th class="table-th">Giảm</th>
                             <th class="table-th">Giảm tối đa</th>
-                            <th class="table-th">Đơn tối thiểu</th>
+                            <th class="table-th">Tiền hàng tối thiểu</th>
                             <th class="table-th">Sử dụng</th>
                             <th class="table-th">Hết hạn</th>
                             <th class="table-th">Trạng thái</th>
                             <th class="table-th">Đơn hàng</th>
-                            <th class="table-th">Aksi</th>
+                            <th class="table-th">Thao tác</th>
                         </tr>
                     </thead>
 
@@ -127,6 +135,10 @@
                             <td class="table-td">
                                 <div class="font-semibold text-sm max-w-[320px]">
                                     {{ discount.discount_description }}
+                                    <div class="mt-1 text-xs font-normal text-primary">{{ discount.discount_scope ===
+                                        "lot" ? `Xả kho · Lô ${discount.lot?.lot_code || discount.lot_id}` : "Toàn sàn"
+                                    }} · {{ discount.show_in_wallet ? "Hiện trong kho voucher" : "Không công khai"
+                                        }}</div>
                                 </div>
 
                                 <div v-if="discount.user" class="text-xs text-text-light">
@@ -150,6 +162,8 @@
 
                             <td class="table-td font-mono">
                                 {{ formatVND(discount.min_order_value) }}
+                                <p class="mt-1 text-xs font-normal text-text-light">{{ discount.discount_scope === 'lot'
+                                    ? 'Chỉ tính tiền hàng từ lô áp dụng' : 'Tính trên tổng tiền hàng' }}</p>
                             </td>
 
                             <td class="table-td">
@@ -262,130 +276,165 @@
                         <span>{{ store.errorMsg }}</span>
                     </div>
 
-                    <div class="form-group">
-                        <label class="form-label">
-                            Mã giảm giá <span class="text-primary">*</span>
-                        </label>
-
-                        <input v-model.trim="store.form.discount_code" class="form-control uppercase font-mono"
-                            placeholder="Ví dụ: SALE10, WELCOME15" @input="handleCodeInput" />
-
-                        <p class="text-xs text-text-light mt-1">
-                            Khách hàng sẽ nhập mã này khi áp dụng giảm giá.
-                            Chỉ nên dùng chữ in hoa, số, dấu gạch ngang hoặc gạch dưới.
-                        </p>
-
-                        <p v-if="store.fieldError('discount_code')" class="error-text">
-                            {{ store.fieldError("discount_code") }}
-                        </p>
-                    </div>
-
-                    <div class="form-group">
-                        <label class="form-label">
-                            Mô tả giảm giá <span class="text-primary">*</span>
-                        </label>
-
-                        <input v-model.trim="store.form.discount_description" class="form-control"
-                            placeholder="Ví dụ: Giảm 10% cho đơn từ 200.000đ" />
-
-                        <p v-if="store.fieldError('discount_description')" class="error-text">
-                            {{ store.fieldError("discount_description") }}
-                        </p>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <fieldset :disabled="store.saving" class="space-y-5">
+                        <div class="form-group">
+                            <label class="form-label" for="voucher-scope">Loại voucher</label>
+                            <select id="voucher-scope" v-model="store.form.discount_scope" :disabled="identityLocked"
+                                class="form-control" @change="changeScope">
+                                <option value="order">Toàn sàn — giảm trên tổng tiền hàng</option>
+                                <option value="lot">Xả kho — chỉ giảm hàng thuộc lô đã chọn</option>
+                            </select>
+                            <p v-if="identityLocked" class="mt-1 text-xs text-text-light">Voucher đã gắn đơn hàng nên
+                                không đổi loại hoặc lô.</p>
+                        </div>
+                        <DiscountLotPicker v-if="store.form.discount_scope === 'lot'" v-model="store.form.lot_id"
+                            :selected-lot="selectedLot" :disabled="identityLocked" @select="selectLot" />
+                        <p v-if="store.form.discount_scope === 'lot'" class="mt-1 text-xs text-text-light">Mỗi lô chỉ có
+                            một voucher xả kho được bật trong cùng khoảng thời gian hiệu lực.</p>
+                        <p v-if="store.fieldError('lot_id')" class="error-text">{{ store.fieldError('lot_id') }}</p>
                         <div class="form-group">
                             <label class="form-label">
-                                Phần trăm giảm <span class="text-primary">*</span>
+                                Mã giảm giá <span class="text-primary">*</span>
                             </label>
 
-                            <input v-model.number="store.form.discount_percent" type="number" min="1" max="100"
-                                class="form-control" placeholder="10" />
+                            <input v-model.trim="store.form.discount_code" class="form-control uppercase font-mono"
+                                placeholder="Ví dụ: SALE10, WELCOME15" @input="handleCodeInput" />
 
-                            <p v-if="store.fieldError('discount_percent')" class="error-text">
-                                {{ store.fieldError("discount_percent") }}
+                            <p class="text-xs text-text-light mt-1">
+                                Khách hàng sẽ nhập mã này khi áp dụng giảm giá.
+                                Chỉ nên dùng chữ in hoa, số, dấu gạch ngang hoặc gạch dưới.
+                            </p>
+
+                            <p v-if="store.fieldError('discount_code')" class="error-text">
+                                {{ store.fieldError("discount_code") }}
                             </p>
                         </div>
 
                         <div class="form-group">
                             <label class="form-label">
-                                Ngày hết hạn <span class="text-primary">*</span>
+                                Mô tả giảm giá <span class="text-primary">*</span>
                             </label>
 
-                            <input v-model="store.form.expire_date" type="date" class="form-control" />
+                            <input v-model.trim="store.form.discount_description" class="form-control"
+                                placeholder="Ví dụ: Giảm 10% cho đơn từ 200.000đ" />
 
-                            <p v-if="store.fieldError('expire_date')" class="error-text">
-                                {{ store.fieldError("expire_date") }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">
-                                Giảm tối đa <span class="text-primary">*</span>
-                            </label>
-
-                            <input v-model.number="store.form.max_discount_amount" type="number" min="0"
-                                class="form-control" placeholder="50000" />
-
-                            <p v-if="store.fieldError('max_discount_amount')" class="error-text">
-                                {{ store.fieldError("max_discount_amount") }}
+                            <p v-if="store.fieldError('discount_description')" class="error-text">
+                                {{ store.fieldError("discount_description") }}
                             </p>
                         </div>
 
-                        <div class="form-group">
-                            <label class="form-label">
-                                Đơn tối thiểu <span class="text-primary">*</span>
-                            </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Phần trăm giảm <span class="text-primary">*</span>
+                                </label>
 
-                            <input v-model.number="store.form.min_order_value" type="number" min="0"
-                                class="form-control" placeholder="200000" />
+                                <input v-model.number="store.form.discount_percent" type="number" min="1" max="100"
+                                    class="form-control" placeholder="10" />
 
-                            <p v-if="store.fieldError('min_order_value')" class="error-text">
-                                {{ store.fieldError("min_order_value") }}
-                            </p>
-                        </div>
-                    </div>
+                                <p v-if="store.fieldError('discount_percent')" class="error-text">
+                                    {{ store.fieldError("discount_percent") }}
+                                </p>
+                            </div>
 
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                        <div class="form-group">
-                            <label class="form-label">Giới hạn sử dụng</label>
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Ngày hết hạn <span class="text-primary">*</span>
+                                </label>
 
-                            <input v-model="store.form.usage_limit" type="number" min="1" class="form-control"
-                                placeholder="Để trống nếu không giới hạn" />
+                                <input v-model="store.form.expire_date" type="date" class="form-control" />
 
-                            <p v-if="store.fieldError('usage_limit')" class="error-text">
-                                {{ store.fieldError("usage_limit") }}
-                            </p>
-                        </div>
-
-                        <div class="form-group">
-                            <label class="form-label">Số lượt đã dùng</label>
-
-                            <input v-model.number="store.form.used_count" type="number" min="0" class="form-control"
-                                placeholder="0" />
-
-                            <p v-if="store.fieldError('used_count')" class="error-text">
-                                {{ store.fieldError("used_count") }}
-                            </p>
-                        </div>
-                    </div>
-
-                    <label class="switch-card">
-                        <div>
-                            <div class="font-semibold text-sm">Kích hoạt</div>
-                            <div class="text-xs text-text-light">
-                                Cho phép sử dụng chương trình giảm giá này.
+                                <p v-if="store.fieldError('expire_date')" class="error-text">
+                                    {{ store.fieldError("expire_date") }}
+                                </p>
                             </div>
                         </div>
 
-                        <label class="toggle">
-                            <input v-model="store.form.is_active" type="checkbox" />
-                            <span class="toggle-slider"></span>
-                        </label>
-                    </label>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Giảm tối đa <span class="text-primary">*</span>
+                                </label>
 
+                                <input v-model.number="store.form.max_discount_amount" type="number" min="0"
+                                    class="form-control" placeholder="50000" />
+
+                                <p v-if="store.fieldError('max_discount_amount')" class="error-text">
+                                    {{ store.fieldError("max_discount_amount") }}
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">
+                                    {{ store.form.discount_scope === 'lot' ? 'Tiền từ lô áp dụng tối thiểu' :
+                                        'Tổng tiền hàng tối thiểu' }} <span class="text-primary">*</span>
+                                </label>
+
+                                <input v-model.number="store.form.min_order_value" type="number" min="0"
+                                    class="form-control" placeholder="200000" />
+
+                                <p class="mt-1 text-xs text-text-light">{{ store.form.discount_scope === 'lot' ?
+                                    'Chỉ cộng tiền của số lượng thực tế lấy từ lô đã chọn trước giảm giá, không cộng lô khác hoặc phí giao hàng.' :
+                                'Cộng tiền hàng của toàn đơn trước giảm giá, không gồm phí giao hàng.' }}</p>
+                                <p v-if="store.fieldError('min_order_value')" class="error-text">
+                                    {{ store.fieldError("min_order_value") }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <div v-if="store.form.discount_scope === 'order'" class="form-group">
+                                <label class="form-label">Giới hạn sử dụng</label>
+
+                                <input v-model="store.form.usage_limit" type="number" min="1" class="form-control"
+                                    placeholder="Để trống nếu không giới hạn" />
+
+                                <p v-if="store.fieldError('usage_limit')" class="error-text">
+                                    {{ store.fieldError("usage_limit") }}
+                                </p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Số lượt đã dùng</label>
+
+                                <input v-model.number="store.form.used_count" type="number" readonly
+                                    class="form-control bg-bg" placeholder="0" />
+
+                                <p v-if="store.fieldError('used_count')" class="error-text">
+                                    {{ store.fieldError("used_count") }}
+                                </p>
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label class="form-label" for="voucher-start">Bắt đầu áp dụng (để trống để dùng
+                                ngay)</label>
+                            <input id="voucher-start" v-model="store.form.starts_at" type="datetime-local"
+                                class="form-control" />
+                            <p v-if="store.fieldError('starts_at')" class="error-text">{{ store.fieldError('starts_at')
+                            }}</p>
+                        </div>
+                        <label class="flex items-center gap-3 rounded-xl border border-border p-4 text-sm">
+                            <input v-model="store.form.show_in_wallet" type="checkbox"
+                                :disabled="Boolean(store.form.user_id)" /> Hiển thị trong kho voucher công khai
+                        </label>
+                        <p v-if="store.fieldError('show_in_wallet')" class="error-text">{{
+                            store.fieldError('show_in_wallet') }}</p>
+                        <label class="switch-card">
+                            <div>
+                                <div class="font-semibold text-sm">Kích hoạt</div>
+                                <div class="text-xs text-text-light">
+                                    Cho phép sử dụng chương trình giảm giá này.
+                                </div>
+                            </div>
+
+                            <label class="toggle">
+                                <input v-model="store.form.is_active" type="checkbox" />
+                                <span class="toggle-slider"></span>
+                            </label>
+                        </label>
+
+                    </fieldset>
                     <div class="flex flex-col sm:flex-row justify-end gap-3 pt-4 border-t border-border">
                         <button type="button" class="btn-outline" @click="store.closeModal">
                             Hủy
@@ -407,12 +456,22 @@
 
 <script setup>
 import { Icon } from "@iconify/vue";
-import { computed, onMounted } from "vue";
+import DiscountLotPicker from "@/components/admin/discounts/DiscountLotPicker.vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useDiscountStore } from "@/stores/admin/discountStore";
 import { useAuthStore } from "@/stores/shared/authStore";
 
 const store = useDiscountStore();
 const authStore = useAuthStore();
+const selectedLot = ref(null);
+const identityLocked = computed(() => Number(store.selectedDiscount?.orders_count || 0) > 0);
+watch(() => store.showModal, (open) => { if (open) selectedLot.value = store.selectedDiscount?.lot || null; });
+function selectLot(lot) {
+    selectedLot.value = lot;
+    if (!store.form.expire_date || store.form.expire_date > lot.expires_on) store.form.expire_date = lot.expires_on;
+}
+function changeScope() { store.form.lot_id = ""; selectedLot.value = null; if (store.form.discount_scope === "lot") store.form.usage_limit = ""; }
+onBeforeUnmount(() => clearTimeout(searchTimer));
 
 let searchTimer = null;
 
@@ -465,7 +524,7 @@ function handleCodeInput() {
 }
 
 async function handleReload() {
-    await store.fetchDiscounts();
+    try { await store.fetchDiscounts(); } catch { /* Store displays the error. */ }
 }
 
 function handleSearch() {
@@ -475,26 +534,26 @@ function handleSearch() {
 
     searchTimer = setTimeout(async () => {
         store.filters.page = 1;
-        await store.fetchDiscounts();
+        try { await store.fetchDiscounts(); } catch { /* Store displays the error. */ }
     }, 350);
 }
 
 async function handleFilterChange() {
     store.filters.page = 1;
-    await store.fetchDiscounts();
+    try { await store.fetchDiscounts(); } catch { /* Store displays the error. */ }
 }
 
 async function handleResetFilters() {
     store.resetFilters();
-    await store.fetchDiscounts();
+    try { await store.fetchDiscounts(); } catch { /* Store displays the error. */ }
 }
 
 async function handleSave() {
-    await store.saveDiscount();
+    try { await store.saveDiscount(); } catch { /* Store displays the error. */ }
 }
 
 async function handleToggle(discount) {
-    await store.toggleActive(discount);
+    try { await store.toggleActive(discount); } catch { /* Store displays the error. */ }
 }
 
 async function handleDelete(discount) {
@@ -506,7 +565,7 @@ async function handleDelete(discount) {
         return;
     }
 
-    await store.deleteDiscount(discount);
+    try { await store.deleteDiscount(discount); } catch { /* Store displays the error. */ }
 }
 
 function handlePageChange(page) {
@@ -518,7 +577,7 @@ function handlePageChange(page) {
 }
 
 onMounted(async () => {
-    await store.fetchDiscounts();
+    try { await store.fetchDiscounts(); } catch { /* Store displays the error. */ }
 });
 </script>
 

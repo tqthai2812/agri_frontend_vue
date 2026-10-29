@@ -43,6 +43,8 @@ const tabs = [
     ["issues", "Cần đối chiếu"],
 ];
 const kpis = [
+    ["gross_sales", "Tiền hàng trước giảm"],
+    ["discount", "Giảm giá đã chốt"],
     ["net_sales", "Doanh thu hàng sau giảm"],
     ["shipping_charged", "Phí giao hàng thu khách"],
     ["cost_total", "Giá vốn hàng đã bán"],
@@ -188,7 +190,7 @@ onMounted(() => fetchReport());
                     </button>
                 </nav>
                 <template v-if="tab === 'summary'">
-                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+                    <div class="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
                         <article v-for="[key, label] in kpis" :key="key" class="fin-card">
                             <p class="fin-note">{{ label }}</p>
                             <strong class="mt-2 block text-xl"
@@ -218,7 +220,9 @@ onMounted(() => fetchReport());
                                     <thead>
                                         <tr>
                                             <th>Ngày</th>
-                                            <th>Doanh thu hàng</th>
+                                            <th>Tiền hàng trước giảm</th>
+                                            <th>Giảm giá</th>
+                                            <th>Doanh thu hàng sau giảm</th>
                                             <th>Phí giao thu khách</th>
                                             <th>Giá vốn</th>
                                             <th>Chi phí</th>
@@ -228,6 +232,8 @@ onMounted(() => fetchReport());
                                     <tbody>
                                         <tr v-for="d in result.daily" :key="d.date">
                                             <td>{{ d.date }}</td>
+                                            <td class="fin-money">{{ money(d.gross_sales) }}</td>
+                                            <td class="fin-money">{{ money(d.discount) }}</td>
                                             <td class="fin-money">{{ money(d.net_sales) }}</td>
                                             <td class="fin-money">{{ money(d.shipping_charged) }}</td>
                                             <td class="fin-money">{{ money(d.cost_total) }}</td>
@@ -243,7 +249,8 @@ onMounted(() => fetchReport());
                         Lợi nhuận trước thuế = doanh thu hàng sau giảm + phí giao hàng thu
                         khách − giá vốn − chi phí ghi sổ ròng. Đây là báo cáo quản trị theo
                         kỳ; không phải số tiền thực thu, thực chi hay báo cáo thuế. Chi phí
-                        chung không tự phân bổ cho từng sản phẩm.
+                        chung không tự phân bổ cho từng sản phẩm. Tiền giảm giá đã nằm trong
+                        doanh thu sau giảm; không trừ thêm lần nữa khi tính lợi nhuận.
                     </p>
                 </template>
                 <SkuProfitTable v-else-if="tab === 'skus'" :period="result.period" :disabled="loading || dirty"
@@ -255,7 +262,11 @@ onMounted(() => fetchReport());
                                 <tr>
                                     <th>Đơn hàng</th>
                                     <th>Hoàn thành</th>
-                                    <th>Doanh thu hàng</th>
+                                    <th>Tiền hàng trước giảm</th>
+                                    <th>Giảm giá</th>
+                                    <th>Doanh thu hàng sau giảm</th>
+                                    <th>Phí giao thu khách</th>
+                                    <th>Tổng tiền đơn</th>
                                     <th>Giá vốn</th>
                                     <th>Lãi gộp hàng</th>
                                     <th>Thanh toán</th>
@@ -271,7 +282,11 @@ onMounted(() => fetchReport());
                                     <td class="whitespace-nowrap">
                                         {{ dateTime(o.completed_at) }}
                                     </td>
+                                    <td class="fin-money">{{ money(o.gross_sales) }}</td>
+                                    <td class="fin-money">{{ money(o.discount) }}</td>
                                     <td class="fin-money">{{ money(o.net_sales) }}</td>
+                                    <td class="fin-money">{{ money(o.shipping_charged) }}</td>
+                                    <td class="fin-money">{{ money(o.total_payment) }}</td>
                                     <td class="fin-money">{{ money(o.cost_total) }}</td>
                                     <td class="fin-money">{{ money(o.gross_profit) }}</td>
                                     <td>
@@ -280,12 +295,12 @@ onMounted(() => fetchReport());
                                                 paid: "Đã thu hợp lệ",
                                                 cod_uncollected: "COD chưa thu",
                                                 review: "Cần đối chiếu",
-                                        }[o.payment_state]
+                                            }[o.payment_state]
                                         }}
                                     </td>
                                 </tr>
                                 <tr v-if="!result.orders.data.length">
-                                    <td colspan="6">Không có đơn hoàn thành trong kỳ.</td>
+                                    <td colspan="10">Không có đơn hoàn thành trong kỳ.</td>
                                 </tr>
                             </tbody>
                         </table>

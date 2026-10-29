@@ -99,9 +99,11 @@ function packageLabel(item) {
                     <th class="order-slip-center">SL</th>
                     <th>
                         {{
-                            data.stock_state === "allocated"
-                                ? "Lô cần lấy / Hạn dùng"
-                                : "Lô xuất / Hạn dùng"
+                            data.stock_state === "reserved"
+                                ? "Lô đã giữ / Hạn dùng"
+                                : data.stock_state === "allocated"
+                                    ? "Lô cần lấy / Hạn dùng"
+                                    : "Lô xuất / Hạn dùng"
                         }}
                     </th>
                     <th class="order-slip-center">Kiểm</th>

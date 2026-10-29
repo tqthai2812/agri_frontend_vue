@@ -41,6 +41,12 @@ const menuItems = [
         label: 'Đơn mua',
         icon: 'mdi:clipboard-text-outline',
     },
+    {
+        name: 'account-vouchers',
+        label: 'Kho voucher',
+        description: 'Ưu đãi dành cho bạn',
+        icon: 'mdi:ticket-percent-outline',
+    },
 ]
 
 function handleOutside(event) {

@@ -135,12 +135,20 @@ watch(
                                             ">
                                             {{ row.allocation_status }}
                                         </p>
+                                        <p class="fin-note mb-3">{{ row.reservation_check }}</p>
+                                        <p class="fin-note mb-3">
+                                            Số lượng hưởng giảm theo lô dùng cho voucher xả kho.
+                                            Tiền giảm thực tế của cả dòng được hiển thị ở bảng trên.
+                                            Dấu — là không có lịch sử giữ lô để đối chiếu.
+                                        </p>
                                         <table v-if="row.allocations?.length">
                                             <thead>
                                                 <tr>
                                                     <th>Lô xuất</th>
                                                     <th>Phiếu xuất</th>
-                                                    <th class="fin-money">Số lượng</th>
+                                                    <th class="fin-money">Số lượng xuất</th>
+                                                    <th class="fin-money">Số lượng đã giữ</th>
+                                                    <th class="fin-money">SL hưởng giảm theo lô</th>
                                                     <th class="fin-money">Đơn giá vốn lô</th>
                                                     <th class="fin-money">Thành tiền vốn</th>
                                                 </tr>
@@ -150,6 +158,8 @@ watch(
                                                     <td>{{ lot.lot_code || "—" }}</td>
                                                     <td>{{ lot.document_number || "—" }}</td>
                                                     <td class="fin-money">{{ lot.quantity }}</td>
+                                                    <td class="fin-money">{{ lot.reserved_quantity ?? "—" }}</td>
+                                                    <td class="fin-money">{{ lot.discounted_quantity ?? "—" }}</td>
                                                     <td class="fin-money">{{ cost4(lot.unit_cost) }}</td>
                                                     <td class="fin-money">
                                                         {{ money(lot.cost_amount) }}

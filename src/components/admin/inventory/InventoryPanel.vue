@@ -4,6 +4,7 @@ import { computed } from "vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import { quantity } from "@/utils/inventoryDisplay";
 import InventoryLots from "./InventoryLots.vue";
+import InventoryReservations from "./InventoryReservations.vue";
 import InventoryHistory from "./InventoryHistory.vue";
 import InventoryImportForm from "./InventoryImportForm.vue";
 import InventoryOpeningForm from "./InventoryOpeningForm.vue";
@@ -71,7 +72,7 @@ async function finishReconciliation() {
             class="inventory-panel fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
             @click.self="closePanel">
             <section role="dialog" aria-modal="true" aria-labelledby="inventory-dialog-title"
-                class="max-h-[92vh] w-full max-w-5xl overflow-y-auto rounded-2xl bg-surface" @keydown.esc="closePanel">
+                class="max-h-[92vh] w-full max-w-6xl overflow-y-auto rounded-2xl bg-surface" @keydown.esc="closePanel">
                 <header
                     class="sticky top-0 z-10 flex items-start justify-between gap-3 border-b border-border bg-surface p-5">
                     <div>
@@ -129,31 +130,42 @@ async function finishReconciliation() {
                                 <p class="text-xs text-text-light">Tồn vật lý</p>
                                 <strong>{{
                                     quantity(store.selectedPackage?.quantity_available)
-                                }}</strong>
+                                    }}</strong>
                             </div>
                             <div>
                                 <p class="text-xs text-text-light">Tổng tồn lô</p>
                                 <strong>{{
                                     quantity(store.selectedPackage?.lot_quantity)
-                                }}</strong>
+                                    }}</strong>
                             </div>
                             <div>
                                 <p class="text-xs text-text-light">Đang giữ</p>
                                 <strong>{{
                                     quantity(store.selectedPackage?.reserved_quantity)
-                                }}</strong>
+                                    }}</strong>
                             </div>
                             <div>
                                 <p class="text-xs text-text-light">Có thể bán</p>
                                 <strong>{{
                                     quantity(store.selectedPackage?.available_to_sell)
-                                }}</strong>
+                                    }}</strong>
                             </div>
+                        </div>
+
+                        <div v-if="store.selectedPackage?.reservation_consistent === false" class="notice-warning"
+                            role="alert">
+                            <strong>Dữ liệu giữ lô cần đối chiếu</strong>
+                            <ul class="mt-2 list-disc pl-5">
+                                <li v-for="item in store.selectedPackage.reservation_issues" :key="item">{{ item }}</li>
+                            </ul>
                         </div>
 
                         <!-- Danh sách lô / chọn lô điều chỉnh -->
                         <InventoryLots v-if="['lots', 'adjustment'].includes(store.mode)"
                             @adjust="emit('adjust', $event)" />
+
+                        <InventoryReservations v-if="store.mode === 'lots' && store.selectedPackage"
+                            :package-id="store.selectedPackage.id" />
 
                         <!-- Form ghi dữ liệu -->
                         <form v-if="writable" @submit.prevent="save">

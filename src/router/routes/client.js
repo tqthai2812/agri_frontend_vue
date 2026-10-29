@@ -34,6 +34,8 @@ const Contact = () => import("@/views/client/Contact.vue");
 
 const Diagnosis = () => import("@/views/client/Diagnosis.vue");
 
+const VoucherWallet = () => import("@/views/client/VoucherWallet.vue");
+
 const clientRoutes = [
   {
     path: "/",
@@ -44,6 +46,12 @@ const clientRoutes = [
     },
 
     children: [
+      {
+        path: "vouchers",
+        name: "public-vouchers",
+        component: VoucherWallet,
+        meta: { title: "Kho voucher", public: true },
+      },
       {
         path: "",
         name: "home",
@@ -166,6 +174,12 @@ const clientRoutes = [
         },
 
         children: [
+          {
+            path: "vouchers",
+            name: "account-vouchers",
+            component: VoucherWallet,
+            meta: { title: "Kho voucher" },
+          },
           {
             path: "profile",
             alias: "/profile",

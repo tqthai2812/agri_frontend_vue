@@ -115,7 +115,8 @@ async function load() {
 async function preparePicking() {
     if (!canPrepare.value || loading.value || printing.value || planning.value)
         return;
-    const reallocate = payload.value.has_picking_plan === true;
+    const reallocate = payload.value.has_picking_plan === true
+        || payload.value.has_lot_reservations === true;
     if (
         reallocate &&
         !window.confirm(
@@ -331,7 +332,7 @@ onBeforeUnmount(() => {
                             {{
                                 planning
                                     ? "Đang chốt lô..."
-                                    : payload.has_picking_plan
+                                    : (payload.has_picking_plan || payload.has_lot_reservations)
                                         ? "Chọn lại lô"
                                         : "Chốt lô soạn hàng"
                             }}

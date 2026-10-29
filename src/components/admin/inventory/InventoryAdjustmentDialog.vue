@@ -312,6 +312,13 @@ onBeforeUnmount(() => {
                         {{ quantity(context.stock.reserved) }}</strong>
                 </article>
             </div>
+            <p v-if="context.lot.reserved_quantity > 0" class="fin-warning mb-4">
+                Lô này đang giữ {{ quantity(context.lot.reserved_quantity) }} cho đơn hàng.
+                Điều chỉnh giảm không được lấy vào phần hàng này.
+            </p>
+            <p v-if="context.stock.reservation_consistent === false" class="fin-warning mb-4">
+                Dữ liệu giữ lô cần đối chiếu trước khi điều chỉnh.
+            </p>
             <p v-if="!context.lot.eligible" class="fin-note mb-4">
                 Lô này không được tính vào hàng hợp lệ để bán do hạn dùng hoặc trạng
                 thái lô.

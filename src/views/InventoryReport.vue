@@ -4,8 +4,6 @@ import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import FinancePagination from "@/components/admin/finance/FinancePagination.vue";
 import InventoryReportDetail from "@/components/admin/inventory-report/InventoryReportDetail.vue";
-import InventoryAdjustmentDialog from "@/components/admin/inventory-report/InventoryAdjustmentDialog.vue";
-import { getPendingAdjustment } from "@/composables/useInventoryAdjustment";
 import ReportExportActions from "@/components/admin/exports/ReportExportActions.vue";
 import {
     useInventoryReport,
@@ -19,10 +17,6 @@ import "@/assets/finance.css";
 const auth = useAuthStore();
 const { canView, canExport, result, loading, error, load } =
     useInventoryReport();
-const canAdjust = computed(() => canView.value && !!auth.user?.id && auth.hasPermission("inventory.create"));
-const adjustment = ref(null);
-const pendingAdjustment = ref(null);
-const savedAdjustment = ref(null);
 const today = todayVN();
 const filters = reactive({
     view: "ledger",
@@ -145,39 +139,6 @@ function quick(previous = false) {
     }
     apply();
 }
-
-function refreshPending() {
-    pendingAdjustment.value = canAdjust.value ? getPendingAdjustment(auth.user?.id) : null;
-}
-
-function openAdjustment(row) {
-    if (!canAdjust.value || loading.value) return;
-    savedAdjustment.value = null;
-    refreshPending();
-    adjustment.value = pendingAdjustment.value
-        ? { package_id: pendingAdjustment.value.payload.package_id, lot_id: pendingAdjustment.value.payload.lot_id }
-        : { package_id: Number(row.package_id), lot_id: Number(row.lot_id) };
-}
-
-async function adjusted(record) {
-    const actor = auth.user?.id;
-    adjustment.value = null;
-    refreshPending();
-    savedAdjustment.value = record;
-    if (!applied.value || !canView.value) return;
-    await load({ ...applied.value });
-    if (actor !== auth.user?.id || !canView.value || !result.value) return;
-    if (Number(result.value.meta.current_page) > Number(result.value.meta.last_page)) {
-        applied.value = { ...applied.value, page: Math.max(1, Number(result.value.meta.last_page)) };
-        await load({ ...applied.value });
-    }
-}
-
-watch(() => [auth.user?.id, canAdjust.value], () => {
-    adjustment.value = null;
-    savedAdjustment.value = null;
-    refreshPending();
-}, { immediate: true });
 watch(
     () => [auth.user?.id, canView.value],
     () => {
@@ -189,21 +150,6 @@ watch(
 </script>
 <template>
     <div class="finance inventory-report min-w-0">
-        <div v-if="canView && savedAdjustment" role="status"
-            class="fin-ok mb-4 flex flex-wrap items-center justify-between gap-3">
-            <span>Đã ghi sổ điều chỉnh {{ Number(savedAdjustment.quantity_change) > 0 ? '+' : '' }}{{
-                quantity(savedAdjustment.quantity_change) }} đơn vị quy cách.</span>
-            <button v-if="savedAdjustment.document_id" type="button" class="fin-link"
-                @click="detail = { kind: 'document', id: Number(savedAdjustment.document_id) }">Xem phiếu điều
-                chỉnh</button>
-        </div>
-        <div v-if="canAdjust && pendingAdjustment"
-            class="fin-warning mb-4 flex flex-wrap items-center justify-between gap-3">
-            <span>Còn một thao tác điều chỉnh cần kiểm tra kết quả: {{ pendingAdjustment.sku }} · lô {{
-                pendingAdjustment.lot_code }}.</span>
-            <button type="button" class="fin-btn" :disabled="loading || !!adjustment"
-                @click="openAdjustment(pendingAdjustment.payload)">Tiếp tục kiểm tra</button>
-        </div>
         <header class="flex flex-wrap items-start justify-between gap-4">
             <div>
                 <p class="mb-1 text-xs font-bold uppercase tracking-widest text-emerald-700">
@@ -214,7 +160,7 @@ watch(
                     Đối chiếu số lượng, giá trị tồn và hạn dùng từ sổ kho theo lô.
                 </p>
             </div>
-            <span class="fin-badge">{{ canAdjust ? 'Điều chỉnh theo lô' : 'Chỉ xem dữ liệu' }}</span>
+            <span class="fin-badge">Chỉ xem dữ liệu</span>
         </header>
         <div v-if="!canView" role="alert" class="fin-warning mt-6">
             Bạn cần quyền xem kho và xem báo cáo kho để sử dụng trang này.
@@ -327,7 +273,7 @@ watch(
                     Ngày xét hạn theo hệ thống kho:
                     {{ dateText(result.eligibility_date) }}. Lô hết hạn/khóa/cách ly vẫn
                     nằm trong tồn vật lý và giá trị tồn cho đến khi có phiếu xử lý. Giữ
-                    hàng được theo dõi theo SKU, chưa phân bổ cho từng lô.
+                    hàng theo lô được đối chiếu với từng đơn; các đơn cũ chưa chốt lô được ghi riêng.
                 </p>
                 <section class="fin-card mt-5">
                     <div class="mb-4 flex flex-wrap items-center justify-between gap-3">
@@ -369,6 +315,8 @@ watch(
                                         <th>Lô / nhà cung cấp</th>
                                         <th>Hạn dùng</th>
                                         <th class="fin-money">Còn tồn</th>
+                                        <th class="fin-money">Đang giữ</th>
+                                        <th class="fin-money">Có thể bán</th>
                                         <th class="fin-money">Giá vốn / đơn vị</th>
                                         <th class="fin-money">Giá trị</th>
                                     </template>
@@ -403,7 +351,13 @@ watch(
                                             {{ quantity(row.lot_quantity) }}
                                         </td>
                                         <td class="fin-money">{{ quantity(row.eligible) }}</td>
-                                        <td class="fin-money">{{ quantity(row.reserved) }}</td>
+                                        <td class="fin-money">
+                                            {{ quantity(row.reserved) }}
+                                            <div v-if="row.legacy_unallocated_quantity > 0"
+                                                class="text-xs text-text-light">
+                                                {{ quantity(row.legacy_unallocated_quantity) }} chưa chốt lô
+                                            </div>
+                                        </td>
                                         <td class="fin-money">
                                             <strong>{{ quantity(row.available_to_sell) }}</strong>
                                             <p class="fin-note">
@@ -447,6 +401,14 @@ watch(
                                             </p>
                                         </td>
                                         <td class="fin-money">{{ quantity(row.quantity) }}</td>
+                                        <td class="fin-money">{{ quantity(row.reserved_quantity) }}</td>
+                                        <td class="fin-money">
+                                            {{ quantity(row.available_to_sell) }}
+                                            <div v-if="row.legacy_unallocated_quantity > 0"
+                                                class="text-xs text-text-light">
+                                                SKU còn {{ quantity(row.legacy_unallocated_quantity) }} chưa chốt lô
+                                            </div>
+                                        </td>
                                         <td class="fin-money">{{ money(row.unit_cost, 4) }}</td>
                                         <td class="fin-money">{{ money(row.value) }}</td>
                                     </template>
@@ -465,10 +427,6 @@ watch(
                                             Mở sổ: {{ dateText(row.coverage_start) }}
                                         </p>
                                         <div class="flex flex-col items-start gap-2">
-                                            <button v-if="result.view === 'lots' && canAdjust" type="button"
-                                                class="fin-btn"
-                                                :disabled="loading || !!adjustment || !!pendingAdjustment"
-                                                @click="openAdjustment(row)">Điều chỉnh tồn</button>
                                             <button v-if="result.view === 'ledger'" class="fin-link"
                                                 @click="journal(row)">
                                                 Xem nhật ký</button><button v-if="result.view === 'stock'"
@@ -494,9 +452,6 @@ watch(
             </template>
             <InventoryReportDetail v-if="detail" :key="`${detail.kind}-${detail.id}`" :target="detail"
                 @close="detail = null" />
-            <InventoryAdjustmentDialog v-if="canAdjust && adjustment"
-                :key="`${adjustment.package_id}-${adjustment.lot_id}`" :target="adjustment"
-                @close="adjustment = null; refreshPending()" @saved="adjusted" @pending-change="refreshPending" />
         </template>
     </div>
 </template>

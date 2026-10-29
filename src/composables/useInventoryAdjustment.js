@@ -78,6 +78,8 @@ export function adjustmentProblems(context, form) {
   if (!context) return ["Chưa tải được dữ liệu lô hiện tại."];
   const change = adjustmentChange(form);
   const problems = [];
+  if (context.stock.reservation_consistent === false)
+    problems.push("Dữ liệu giữ lô cần đối chiếu trước khi điều chỉnh.");
   if (!context.stock.consistent)
     problems.push("Tồn vật lý chưa khớp tổng tồn lô. Cần đối chiếu kho trước.");
   if (change === null)
@@ -89,6 +91,15 @@ export function adjustmentProblems(context, form) {
     const lotAfter = context.lot.quantity_on_hand + change;
     const physicalAfter = context.stock.physical + change;
     if (lotAfter < 0) problems.push("Số lượng giảm vượt tồn của lô.");
+    if (
+      change < 0 &&
+      context.lot.reserved_quantity != null &&
+      lotAfter < Number(context.lot.reserved_quantity)
+    ) {
+      problems.push(
+        `Lô đang giữ ${context.lot.reserved_quantity}; không được giảm vào phần hàng đang giữ.`,
+      );
+    }
     if (
       physicalAfter < 0 ||
       lotAfter > MAX_STOCK ||

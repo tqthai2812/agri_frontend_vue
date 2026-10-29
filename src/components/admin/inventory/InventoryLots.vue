@@ -23,11 +23,13 @@ const emit = defineEmits(["adjust"]);
         <div v-if="store.loadingLots" class="empty-cell">Đang tải lô...</div>
 
         <div v-else class="overflow-x-auto">
-            <table class="w-full min-w-[800px]">
+            <table class="w-full min-w-[1050px]">
                 <thead class="bg-bg">
                     <tr>
                         <th class="table-th">Lô</th>
                         <th class="table-th">Tồn lô</th>
+                        <th class="table-th">Đang giữ</th>
+                        <th class="table-th">Có thể bán</th>
                         <th class="table-th">Giá vốn</th>
                         <th class="table-th">Hạn dùng</th>
                         <th class="table-th">Trạng thái</th>
@@ -45,6 +47,17 @@ const emit = defineEmits(["adjust"]);
                             </div>
                         </td>
                         <td class="table-td">{{ lot.quantity_on_hand }}</td>
+                        <td class="table-td">
+                            <strong>{{ lot.reserved_quantity ?? "—" }}</strong>
+                            <p v-if="lot.reservation_consistent === false" class="text-xs text-red-600">Cần đối chiếu
+                            </p>
+                        </td>
+                        <td class="table-td">
+                            <strong>{{ lot.available_to_sell ?? "—" }}</strong>
+                            <p v-if="lot.legacy_unallocated_quantity > 0" class="max-w-48 text-xs text-text-light">
+                                SKU còn {{ lot.legacy_unallocated_quantity }} chưa chốt lô
+                            </p>
+                        </td>
                         <td class="table-td">{{ money(lot.unit_cost) }}</td>
                         <td class="table-td">{{ dateOnly(lot.expires_on) }}</td>
                         <td class="table-td">{{ statusLabel(lot.status) }}</td>
@@ -62,7 +75,7 @@ const emit = defineEmits(["adjust"]);
                     </tr>
 
                     <tr v-if="!store.lots.length">
-                        <td colspan="6" class="empty-cell">Chưa có lô hàng.</td>
+                        <td colspan="8" class="empty-cell">Chưa có lô hàng.</td>
                     </tr>
                 </tbody>
             </table>
@@ -88,8 +101,9 @@ const emit = defineEmits(["adjust"]);
         </div>
 
         <p class="mt-3 text-xs text-text-light">
-            “Khả dụng” không đồng nghĩa còn bán được: lô hết hạn vẫn bị loại khỏi
-            lượng có thể bán.
+            Lô hết hạn, khóa hoặc cách ly không được bán. Dấu “—” ở Có thể bán
+            nghĩa là SKU còn hàng giữ chưa chốt lô hoặc dữ liệu cần đối chiếu;
+            số có thể bán toàn SKU vẫn được kiểm tra riêng.
         </p>
     </div>
 </template>

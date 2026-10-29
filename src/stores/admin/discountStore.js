@@ -4,6 +4,7 @@ import DiscountService from "@/services/discount.service";
 
 export const useDiscountStore = defineStore("discount", () => {
   const discounts = ref([]);
+  let fetchVersion = 0;
   const selectedDiscount = ref(null);
 
   const loading = ref(false);
@@ -27,11 +28,16 @@ export const useDiscountStore = defineStore("discount", () => {
     search: "",
     is_active: "",
     status: "",
+    discount_scope: "",
     page: 1,
     per_page: 15,
   });
 
   const form = reactive({
+    discount_scope: "order",
+    lot_id: "",
+    starts_at: "",
+    show_in_wallet: true,
     user_id: "",
     discount_code: "",
     discount_description: "",
@@ -91,6 +97,10 @@ export const useDiscountStore = defineStore("discount", () => {
   function resetForm() {
     selectedDiscount.value = null;
 
+    form.discount_scope = "order";
+    form.lot_id = "";
+    form.starts_at = "";
+    form.show_in_wallet = true;
     form.user_id = "";
     form.discount_code = "";
     form.discount_description = "";
@@ -115,6 +125,12 @@ export const useDiscountStore = defineStore("discount", () => {
 
     selectedDiscount.value = discount;
 
+    form.discount_scope = discount.discount_scope || "order";
+    form.lot_id = discount.lot_id || "";
+    form.starts_at = String(discount.starts_at || "")
+      .replace(" ", "T")
+      .slice(0, 16);
+    form.show_in_wallet = Boolean(discount.show_in_wallet);
     form.user_id = discount.user_id || "";
     form.discount_code = discount.discount_code || "";
     form.discount_description = discount.discount_description || "";
@@ -130,12 +146,20 @@ export const useDiscountStore = defineStore("discount", () => {
   }
 
   function closeModal() {
+    if (saving.value) return;
     showModal.value = false;
     resetForm();
   }
 
   function buildPayload() {
     return {
+      discount_scope: form.discount_scope,
+      lot_id:
+        form.discount_scope === "lot" ? Number(form.lot_id) || null : null,
+      starts_at: form.starts_at
+        ? form.starts_at.replace("T", " ") + ":00"
+        : null,
+      show_in_wallet: Boolean(form.show_in_wallet),
       user_id: form.user_id || null,
       discount_code: String(form.discount_code || "")
         .trim()
@@ -144,14 +168,17 @@ export const useDiscountStore = defineStore("discount", () => {
       discount_percent: Number(form.discount_percent || 0),
       max_discount_amount: Number(form.max_discount_amount || 0),
       min_order_value: Number(form.min_order_value || 0),
-      usage_limit: form.usage_limit === "" ? null : Number(form.usage_limit),
-      used_count: Number(form.used_count || 0),
+      usage_limit:
+        form.discount_scope === "lot" || form.usage_limit === ""
+          ? null
+          : Number(form.usage_limit),
       expire_date: form.expire_date,
       is_active: Boolean(form.is_active),
     };
   }
 
   async function fetchDiscounts() {
+    const version = ++fetchVersion;
     loading.value = true;
     clearMessages();
 
@@ -160,10 +187,12 @@ export const useDiscountStore = defineStore("discount", () => {
         search: filters.search || undefined,
         is_active: filters.is_active !== "" ? filters.is_active : undefined,
         status: filters.status || undefined,
+        discount_scope: filters.discount_scope || undefined,
         page: filters.page,
         per_page: filters.per_page,
       });
 
+      if (version !== fetchVersion) return response;
       discounts.value = response.data?.data || [];
 
       const responseMeta = response.data?.meta || {};
@@ -175,14 +204,17 @@ export const useDiscountStore = defineStore("discount", () => {
 
       return response;
     } catch (error) {
+      if (version !== fetchVersion) return;
+      discounts.value = [];
       setErrors(error);
       throw error;
     } finally {
-      loading.value = false;
+      if (version === fetchVersion) loading.value = false;
     }
   }
 
   async function saveDiscount() {
+    if (saving.value) return;
     saving.value = true;
     clearMessages();
 
@@ -205,10 +237,13 @@ export const useDiscountStore = defineStore("discount", () => {
 
       const successMessage = message.value;
 
-      await fetchDiscounts();
-
-      closeModal();
-
+      showModal.value = false;
+      resetForm();
+      try {
+        await fetchDiscounts();
+      } catch {
+        /* Save succeeded; offer Reload without another POST. */
+      }
       message.value = successMessage;
 
       return response;
@@ -249,15 +284,6 @@ export const useDiscountStore = defineStore("discount", () => {
 
     try {
       const response = await DiscountService.updateDiscount(discount.id, {
-        user_id: discount.user_id || null,
-        discount_code: discount.discount_code,
-        discount_description: discount.discount_description,
-        discount_percent: discount.discount_percent,
-        max_discount_amount: discount.max_discount_amount,
-        min_order_value: discount.min_order_value,
-        usage_limit: discount.usage_limit,
-        used_count: discount.used_count,
-        expire_date: discount.expire_date,
         is_active: !discount.is_active,
       });
 
@@ -281,12 +307,13 @@ export const useDiscountStore = defineStore("discount", () => {
     filters.search = "";
     filters.is_active = "";
     filters.status = "";
+    filters.discount_scope = "";
     filters.page = 1;
   }
 
   function setPage(page) {
     filters.page = page;
-    fetchDiscounts();
+    fetchDiscounts().catch(() => {});
   }
 
   return {

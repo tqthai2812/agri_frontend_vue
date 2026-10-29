@@ -4,6 +4,7 @@ import { useRoute, useRouter } from "vue-router";
 import { Icon } from "@iconify/vue";
 import AddressBookModal from "@/components/client/checkout/AddressBookModal.vue";
 import CheckoutProducts from "@/components/client/checkout/CheckoutProducts.vue";
+import VoucherList from "@/components/client/vouchers/VoucherList.vue";
 import CheckoutSummary from "@/components/client/checkout/CheckoutSummary.vue";
 import VnpayService from "@/services/client/vnpay.service";
 import { useCartStore } from "@/stores/client/cartStore";
@@ -13,6 +14,13 @@ const cartStore = useCartStore();
 const addressModalOpen = ref(false);
 const editingAddressId = ref(null);
 const voucherCode = ref("");
+const walletOpen = ref(false);
+async function selectWalletVoucher(code) {
+    if (formLocked.value || cartStore.previewing) return;
+    voucherCode.value = code;
+    walletOpen.value = false;
+    await applyVoucher();
+}
 const toast = ref(null);
 const initialized = ref(false);
 const pageLoading = ref(false);
@@ -525,6 +533,22 @@ onBeforeUnmount(() => {
                                             Áp dụng
                                         </button>
                                     </div>
+                                    <button type="button"
+                                        class="mt-3 text-xs font-bold text-[#07532b] underline disabled:opacity-40"
+                                        :disabled="formLocked || cartStore.previewing" :aria-expanded="walletOpen"
+                                        @click="walletOpen = !walletOpen">
+                                        {{ walletOpen ? 'Đóng kho voucher' : 'Chọn từ kho voucher' }}
+                                    </button>
+                                    <div v-if="walletOpen" class="mt-4 rounded-2xl border border-slate-200 p-3">
+                                        <VoucherList selectable :disabled="formLocked || cartStore.previewing"
+                                            @select="selectWalletVoucher" />
+                                    </div>
+                                    <p v-if="cartStore.appliedDiscount?.discount_scope === 'lot'"
+                                        class="mt-3 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
+                                        Giảm cho {{ cartStore.appliedDiscount.eligible_quantity }} sản phẩm thuộc lô {{
+                                            cartStore.appliedDiscount.lot_code }}
+                                        (tiền hàng áp dụng {{ formatVND(cartStore.appliedDiscount.eligible_amount) }}).
+                                    </p>
                                     <div v-if="cartStore.checkoutForm.discount_code"
                                         class="mt-3 flex items-center justify-between gap-2 text-xs">
                                         <span :class="cartStore.appliedDiscount

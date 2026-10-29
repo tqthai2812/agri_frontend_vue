@@ -1,3 +1,5 @@
+import newsAdminRoutes from "./news-admin";
+
 const AppLayout = () => import("@/components/layout/AppLayout.vue");
 
 const Dashboard = () => import("@/views/Dashboard.vue");
@@ -23,6 +25,7 @@ const InventoryReport = () => import("@/views/InventoryReport.vue");
 
 const DataExports = () => import("@/views/DataExports.vue");
 
+
 const adminRoutes = [
   {
     path: "/admin",
@@ -30,6 +33,7 @@ const adminRoutes = [
     redirect: { name: "admin-dashboard" },
     meta: { requiresAuth: true, area: "admin" },
     children: [
+      ...newsAdminRoutes,
       {
         path: "data-exports",
         name: "admin-data-exports",

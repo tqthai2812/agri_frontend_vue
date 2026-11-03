@@ -11,8 +11,18 @@ import { useAuthStore } from "@/stores/shared/authStore";
 import { newsApi, errorText } from "@/services/newsStudio.service";
 import NewsAvatar from "./NewsAvatar.vue";
 import NewsCommentItem from "./NewsCommentItem.vue";
+import NewsReactionPeople from "./NewsReactionPeople.vue";
+import NewsHiddenComments from "./NewsHiddenComments.vue";
+import { useRouter } from "vue-router";
 const props = defineProps({ slug: { type: String, required: true } });
 const auth = useAuthStore();
+const router = useRouter();
+const hiddenOpen = ref(false);
+const canModerate = computed(
+  () => !!auth.isLoggedIn && !!auth.hasPermission("article.update"),
+);
+const reacting = ref({}),
+  reactionPeople = ref(null);
 const rows = ref([]),
   meta = ref({}),
   mine = ref(false),
@@ -32,14 +42,56 @@ let seq = 0;
 const base = () => `/api/v1/public/news/${encodeURIComponent(props.slug)}`;
 const own = (c) =>
   !!auth.isLoggedIn && Number(auth.user?.id) === Number(c.user_id);
-const canHide = (c) =>
-  !!auth.isLoggedIn &&
-  !!auth.hasPermission("article.update") &&
-  c.status === "active";
+const canHide = (c) => canModerate.value && c.status === "active";
 const userName = computed(() => auth.user?.name || "Bạn");
 const userAvatar = computed(
   () => auth.user?.avatar_url || auth.user?.avatar || null,
 );
+function applyReaction(summary) {
+  const update = (c) => {
+    if (Number(c.id) !== Number(summary.comment_id)) return;
+    c.like_count = summary.like_count;
+    c.dislike_count = summary.dislike_count;
+    c.my_reaction = summary.my_reaction;
+  };
+  rows.value.forEach(update);
+  Object.values(replies.value).forEach((page) => page.data.forEach(update));
+}
+async function react(c, type) {
+  if (!auth.isLoggedIn) {
+    return router.push({
+      path: "/login",
+      query: { redirect: "/news/" + props.slug },
+    });
+  }
+  if (reacting.value[c.id] || sending.value || c.status !== "active") return;
+  const marker = Symbol(),
+    slug = props.slug,
+    userId = auth.user?.id;
+  const next = c.my_reaction === type ? null : type;
+  reacting.value[c.id] = marker;
+  error.value = "";
+  try {
+    const r = await newsApi.write(
+      next ? "put" : "delete",
+      `/api/v1/news-comments/${c.id}/reaction`,
+      next ? { type: next } : undefined,
+    );
+    if (props.slug === slug && auth.user?.id === userId) applyReaction(r.data);
+  } catch (e) {
+    if (props.slug === slug && auth.user?.id === userId) {
+      error.value =
+        e.response?.status === 404
+          ? "Bình luận đã bị ẩn hoặc không còn tồn tại."
+          : errorText(e);
+    }
+  } finally {
+    if (reacting.value[c.id] === marker) delete reacting.value[c.id];
+  }
+}
+function people(c, type) {
+  reactionPeople.value = { id: c.id, type };
+}
 async function load(page = 1) {
   const token = ++seq;
   loading.value = true;
@@ -214,9 +266,20 @@ async function toggleMine() {
   mine.value = !mine.value;
   await load();
 }
+function restored() {
+  cancel();
+  replies.value = {};
+  load(meta.value.current_page || 1);
+}
+watch(canModerate, (allowed) => {
+  if (!allowed) hiddenOpen.value = false;
+});
 watch(
   () => props.slug,
   () => {
+    hiddenOpen.value = false;
+    reactionPeople.value = null;
+    reacting.value = {};
     rows.value = [];
     replies.value = {};
     cancel();
@@ -225,8 +288,11 @@ watch(
   },
 );
 watch(
-  () => auth.isLoggedIn,
+  () => [auth.isLoggedIn, auth.user?.id],
   () => {
+    hiddenOpen.value = false;
+    reactionPeople.value = null;
+    reacting.value = {};
     mine.value = false;
     cancel();
     replies.value = {};
@@ -245,14 +311,25 @@ onBeforeUnmount(() => seq++);
   >
     <div class="row between news-comments-header">
       <h2 id="news-comments-title">Bình luận</h2>
-      <button
-        v-if="auth.isLoggedIn"
-        class="news-filter"
-        :disabled="sending"
-        @click="toggleMine"
-      >
-        {{ mine ? "Tất cả bình luận" : "Bình luận của tôi" }}
-      </button>
+      <div class="row news-comments-tools">
+        <button
+          v-if="canModerate"
+          type="button"
+          class="news-filter"
+          :disabled="sending"
+          @click="hiddenOpen = true"
+        >
+          Xem các bình luận bị ẩn
+        </button>
+        <button
+          v-if="auth.isLoggedIn"
+          class="news-filter"
+          :disabled="sending"
+          @click="toggleMine"
+        >
+          {{ mine ? "Tất cả bình luận" : "Bình luận của tôi" }}
+        </button>
+      </div>
     </div>
     <p class="muted news-comments-help">
       Cùng chia sẻ kinh nghiệm và trao đổi lịch sự, đúng chủ đề.
@@ -302,6 +379,9 @@ onBeforeUnmount(() => seq++);
           :can-hide="canHide(c)"
           :show-status="mine"
           :disabled="sending"
+          :reacting="!!reacting[c.id]"
+          @react="react"
+          @people="people"
           @reply="reply"
           @edit="edit"
           @remove="remove"
@@ -352,6 +432,9 @@ onBeforeUnmount(() => seq++);
                 :can-reply="auth.isLoggedIn"
                 :can-hide="canHide(child)"
                 :disabled="sending"
+                :reacting="!!reacting[child.id]"
+                @react="react"
+                @people="people"
                 @reply="reply"
                 @edit="edit"
                 @remove="remove"
@@ -457,5 +540,17 @@ onBeforeUnmount(() => seq++);
         Sau
       </button>
     </nav>
+    <NewsReactionPeople
+      :target="reactionPeople"
+      @close="reactionPeople = null"
+    />
+    <NewsHiddenComments
+      v-if="canModerate"
+      :key="auth.user?.id"
+      :open="hiddenOpen"
+      :slug="slug"
+      @close="hiddenOpen = false"
+      @restored="restored"
+    />
   </section>
 </template>

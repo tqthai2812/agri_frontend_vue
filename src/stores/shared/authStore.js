@@ -1,208 +1,153 @@
 import { defineStore } from "pinia";
-import { ref, computed } from "vue";
+import { computed, ref } from "vue";
 import AuthService from "@/services/shared/auth.service";
 
 export const useAuthStore = defineStore("auth", () => {
   const user = ref(null);
   const isAuthenticated = ref(false);
   const loading = ref(false);
-
+  const initialized = ref(false);
+  const syncError = ref("");
+  const lastCheckedAt = ref(0);
+  let pending = null;
+  let generation = 0;
   const isLoggedIn = computed(() => isAuthenticated.value && !!user.value);
+  const isAdmin = computed(() => user.value?.roles?.includes("admin") === true);
+  const hasRole = (role) => user.value?.roles?.includes(role) === true;
+  const hasPermission = (permission) =>
+    user.value?.permissions?.includes(permission) === true;
 
-  const isAdmin = computed(() => {
-    return user.value?.roles?.includes("admin") || user.value?.role === "admin";
-  });
-
-  function saveUserToStorage(userData) {
-    if (userData) {
-      localStorage.setItem("auth_user", JSON.stringify(userData));
-    } else {
-      localStorage.removeItem("auth_user");
-    }
+  function acceptUser(data) {
+    user.value = data?.id
+      ? {
+          ...data,
+          roles: data.roles || [],
+          permissions: data.permissions || [],
+        }
+      : null;
+    isAuthenticated.value = !!user.value;
+    initialized.value = true;
+    syncError.value = "";
+    lastCheckedAt.value = Date.now();
+    localStorage.removeItem("auth_user");
+    return user.value;
   }
 
   function clearAuthData() {
-    user.value = null;
-    isAuthenticated.value = false;
-    localStorage.removeItem("auth_user");
+    generation++;
+    acceptUser(null);
   }
 
-  function hasRole(role) {
-    return user.value?.roles?.includes(role) || user.value?.role === role;
-  }
-
-  function hasPermission(permission) {
-    return user.value?.permissions?.includes(permission);
-  }
-
+  // Compatibility method: the server is the only source of session/access state.
   function loadUserFromStorage() {
-    const stored = localStorage.getItem("auth_user");
-
-    if (!stored || stored === "undefined" || stored === "null") {
-      clearAuthData();
-      return;
-    }
-
-    try {
-      const parsedUser = JSON.parse(stored);
-
-      user.value = parsedUser;
-      isAuthenticated.value = !!parsedUser;
-    } catch (error) {
-      console.error("Lỗi đọc auth_user từ localStorage:", error);
-      clearAuthData();
-    }
+    return ensureSession();
   }
 
-  async function sendRegisterCode(email) {
-    loading.value = true;
-
-    try {
-      return await AuthService.sendRegisterCode(email);
-    } catch (error) {
-      console.error("Send register code failed", error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function verifyRegisterCode(email, code) {
-    loading.value = true;
-
-    try {
-      return await AuthService.verifyRegisterCode(email, code);
-    } catch (error) {
-      console.error("Verify register code failed", error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function register(form) {
-    loading.value = true;
-
-    try {
-      const response = await AuthService.register(form);
-
-      user.value = response.data.user || null;
-      isAuthenticated.value = !!user.value;
-
-      saveUserToStorage(user.value);
-
-      return response;
-    } catch (error) {
-      console.error("Register failed", error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function login(email, password, remember = false) {
-    loading.value = true;
-
-    try {
-      await AuthService.login(email, password, remember);
-
-      const userData = await fetchUser();
-
-      if (!userData) {
-        throw new Error(
-          "Không thể lấy thông tin người dùng sau đăng nhập. Kiểm tra cookie.",
-        );
+  async function fetchUser({ force = true } = {}) {
+    if (pending) return pending;
+    if (
+      !force &&
+      initialized.value &&
+      Date.now() - lastCheckedAt.value < 30_000
+    )
+      return user.value;
+    const epoch = generation;
+    const request = (async () => {
+      try {
+        const response = await AuthService.getUser();
+        if (epoch !== generation) return user.value;
+        return acceptUser(response.data?.user ?? response.data);
+      } catch (error) {
+        if (epoch !== generation) return user.value;
+        if (
+          error.response?.status === 401 ||
+          error.response?.data?.code === "ACCOUNT_INACTIVE"
+        )
+          return acceptUser(null);
+        // A network/server error must not impersonate a logged-out session.
+        syncError.value =
+          "Không thể xác minh phiên đăng nhập. Vui lòng thử lại.";
+        throw error;
       }
+    })();
+    pending = request;
+    try {
+      return await request;
+    } finally {
+      if (pending === request) pending = null;
+    }
+  }
 
-      return {
-        data: {
-          user: userData,
-        },
-      };
-    } catch (error) {
-      console.error("Login failed", error);
-      throw error;
+  const ensureSession = () => fetchUser({ force: false });
+  async function action(callback) {
+    loading.value = true;
+    try {
+      return await callback();
     } finally {
       loading.value = false;
     }
   }
-
-  async function logout() {
-    loading.value = true;
-
-    try {
-      await AuthService.logout();
-    } catch (error) {
-      console.error("Logout error", error);
-    } finally {
+  const sendRegisterCode = (email) =>
+    action(() => AuthService.sendRegisterCode(email));
+  const verifyRegisterCode = (email, code) =>
+    action(() => AuthService.verifyRegisterCode(email, code));
+  const forgotPassword = (email) =>
+    action(() => AuthService.forgotPassword(email));
+  const resetPassword = (form) => action(() => AuthService.resetPassword(form));
+  const register = (form) =>
+    action(async () => {
+      const response = await AuthService.register(form);
+      generation++;
+      acceptUser(response.data?.user);
+      return response;
+    });
+  const login = (email, password, remember = false) =>
+    action(async () => {
+      const response = await AuthService.login(email, password, remember);
+      generation++;
+      if (response.data?.user?.id)
+        return { data: { user: acceptUser(response.data.user) } };
+      const data = await fetchUser();
+      if (!data)
+        throw new Error(
+          "Không thể xác minh phiên đăng nhập sau khi đăng nhập.",
+        );
+      return { data: { user: data } };
+    });
+  const logout = () =>
+    action(async () => {
+      // Keep local authentication on a network failure so the user can retry logout.
+      try {
+        await AuthService.logout();
+      } catch (error) {
+        if (error.response?.status !== 401) throw error;
+      }
       clearAuthData();
-      loading.value = false;
-    }
-  }
-
-  async function fetchUser() {
-    try {
-      const response = await AuthService.getUser();
-
-      const userData = response.data?.user || response.data || null;
-
-      user.value = userData;
-      isAuthenticated.value = !!user.value;
-
-      saveUserToStorage(user.value);
-
-      return userData;
-    } catch (error) {
-      clearAuthData();
-      return null;
-    }
-  }
-
-  async function forgotPassword(email) {
-    loading.value = true;
-
-    try {
-      return await AuthService.forgotPassword(email);
-    } catch (error) {
-      console.error("Forgot password failed", error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  }
-
-  async function resetPassword(form) {
-    loading.value = true;
-
-    try {
-      return await AuthService.resetPassword(form);
-    } catch (error) {
-      console.error("Reset password failed", error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
-  }
+      window.dispatchEvent(new Event("auth:changed"));
+      localStorage.setItem("auth_sync", String(Date.now()));
+    });
 
   return {
     user,
     isAuthenticated,
     loading,
-
+    initialized,
+    syncError,
+    lastCheckedAt,
     isLoggedIn,
     isAdmin,
     hasRole,
     hasPermission,
-
+    fetchUser,
+    ensureSession,
+    loadUserFromStorage,
+    clearAuthData,
     sendRegisterCode,
     verifyRegisterCode,
     register,
     login,
     logout,
-    fetchUser,
     forgotPassword,
     resetPassword,
-    loadUserFromStorage,
-    clearAuthData,
   };
 });

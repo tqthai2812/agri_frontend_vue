@@ -25,15 +25,31 @@ const InventoryReport = () => import("@/views/InventoryReport.vue");
 
 const DataExports = () => import("@/views/DataExports.vue");
 
-
 const adminRoutes = [
   {
     path: "/admin",
     component: AppLayout,
-    redirect: { name: "admin-dashboard" },
     meta: { requiresAuth: true, area: "admin" },
     children: [
       ...newsAdminRoutes,
+      {
+        path: "permissions",
+        name: "admin-permissions",
+        component: () => import("@/views/admin/access/PermissionList.vue"),
+        meta: {
+          title: "Danh sách quyền",
+          requiredPermission: "permission.view",
+        },
+      },
+      {
+        path: "user-access",
+        name: "admin-user-access",
+        component: () => import("@/views/admin/access/UserAccess.vue"),
+        meta: {
+          title: "Phân quyền tài khoản",
+          requiredPermission: "user.view",
+        },
+      },
       {
         path: "data-exports",
         name: "admin-data-exports",

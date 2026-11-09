@@ -1,374 +1,165 @@
 import { defineStore } from "pinia";
-import { computed, reactive, ref } from "vue";
+import { reactive, ref } from "vue";
 import RoleService from "@/services/role.service";
+import { useAuthStore } from "@/stores/shared/authStore";
+
+export function accessError(
+  error,
+  fallback = "Không thể hoàn thành thao tác. Vui lòng thử lại.",
+) {
+  return (
+    Object.values(error?.response?.data?.errors || {}).flat()[0] ||
+    error?.response?.data?.message ||
+    fallback
+  );
+}
 
 export const useRoleStore = defineStore("role", () => {
-  const roles = ref([]);
-  const users = ref([]);
-  const permissionGroups = ref({});
-
-  const loading = ref(false);
-  const loadingUsers = ref(false);
-
-  // Tách loading riêng
-  const savingRole = ref(false);
-  const assigningRole = ref(false);
-
-  const selectedRole = ref(null);
-  const selectedUser = ref(null);
-  const userSearch = ref("");
-
-  const form = reactive({
-    name: "",
-    permissions: [],
+  const roles = ref([]),
+    permissionGroups = ref({}),
+    users = ref([]),
+    roleOptions = ref([]);
+  const loading = reactive({
+    roles: false,
+    permissions: false,
+    users: false,
+    options: false,
   });
-
-  const assignForm = reactive({
-    user_id: "",
-    roles: [],
-  });
-
-  const message = ref("");
-  const errorMsg = ref("");
-
   const errors = reactive({
-    name: "",
-    permissions: "",
-    user_id: "",
     roles: "",
+    permissions: "",
+    users: "",
+    options: "",
   });
-
-  const totalRoles = computed(() => roles.value.length);
-
-  const totalPermissions = computed(() => {
-    return Object.values(permissionGroups.value).reduce((total, group) => {
-      return total + group.length;
-    }, 0);
+  const roleFilters = reactive({ search: "", type: "", per_page: 10, page: 1 });
+  const userFilters = reactive({
+    search: "",
+    role: "",
+    is_active: "",
+    per_page: 15,
+    page: 1,
   });
+  const roleMeta = reactive({ current_page: 1, last_page: 1, total: 0 });
+  const userMeta = reactive({ current_page: 1, last_page: 1, total: 0 });
+  const auth = useAuthStore();
+  const controllers = new Map();
+  let catalogRequest = null;
 
-  const groupedRoleStats = computed(() => {
-    return {
-      admin: roles.value.filter((role) => role.name === "admin").length,
-      custom: roles.value.filter((role) => role.name !== "admin").length,
-      permissions: totalPermissions.value,
-      roles: totalRoles.value,
-    };
-  });
-
-  function clearMessages() {
-    message.value = "";
-    errorMsg.value = "";
-
-    errors.name = "";
-    errors.permissions = "";
-    errors.user_id = "";
-    errors.roles = "";
-  }
-
-  function setErrors(error) {
-    const responseErrors = error.response?.data?.errors;
-
-    errors.name = responseErrors?.name?.[0] || "";
-    errors.permissions =
-      responseErrors?.permissions?.[0] ||
-      responseErrors?.["permissions.0"]?.[0] ||
-      "";
-
-    errors.user_id = responseErrors?.user_id?.[0] || "";
-    errors.roles =
-      responseErrors?.roles?.[0] || responseErrors?.["roles.0"]?.[0] || "";
-
-    errorMsg.value =
-      error.response?.data?.message ||
-      errors.name ||
-      errors.permissions ||
-      errors.user_id ||
-      errors.roles ||
-      "Có lỗi xảy ra. Vui lòng thử lại.";
-  }
-
-  function resetForm() {
-    selectedRole.value = null;
-    form.name = "";
-    form.permissions = [];
-    clearMessages();
-  }
-
-  function fillForm(role) {
-    selectedRole.value = role;
-    form.name = role.name;
-    form.permissions =
-      role.permissions?.map((permission) => permission.name) || [];
-    clearMessages();
-  }
-
-  function togglePermission(permissionName) {
-    const index = form.permissions.indexOf(permissionName);
-
-    if (index >= 0) {
-      form.permissions.splice(index, 1);
-      return;
-    }
-
-    form.permissions.push(permissionName);
-  }
-
-  function hasPermissionSelected(permissionName) {
-    return form.permissions.includes(permissionName);
-  }
-
-  function selectUser(user) {
-    selectedUser.value = user;
-    assignForm.user_id = user.id;
-    assignForm.roles = user.roles ? [...user.roles] : [];
-    userSearch.value = `${user.name} - ${user.email}`;
-    clearMessages();
-  }
-
-  function clearSelectedUser() {
-    selectedUser.value = null;
-    assignForm.user_id = "";
-    assignForm.roles = [];
-    userSearch.value = "";
-    clearMessages();
-  }
-
-  function toggleAssignRole(roleName) {
-    const index = assignForm.roles.indexOf(roleName);
-
-    if (index >= 0) {
-      assignForm.roles.splice(index, 1);
-      return;
-    }
-
-    assignForm.roles.push(roleName);
-  }
-
-  function hasAssignRoleSelected(roleName) {
-    return assignForm.roles.includes(roleName);
-  }
-
-  function resetAssignForm() {
-    assignForm.user_id = "";
-    assignForm.roles = [];
-    selectedUser.value = null;
-    userSearch.value = "";
-    clearMessages();
-  }
-
-  async function fetchRoles() {
-    loading.value = true;
-    clearMessages();
-
+  async function list(kind, call, assign) {
+    controllers.get(kind)?.abort();
+    const controller = new AbortController();
+    controllers.set(kind, controller);
+    loading[kind] = true;
+    errors[kind] = "";
     try {
-      const response = await RoleService.getAll();
-      roles.value = response.data?.data || [];
+      const response = await call({ signal: controller.signal });
+      if (controllers.get(kind) === controller) assign(response.data);
       return response;
     } catch (error) {
-      setErrors(error);
-      throw error;
+      if (controllers.get(kind) === controller && error.code !== "ERR_CANCELED")
+        errors[kind] = accessError(error);
     } finally {
-      loading.value = false;
+      if (controllers.get(kind) === controller) {
+        loading[kind] = false;
+        controllers.delete(kind);
+      }
     }
   }
-
+  const fetchRoles = () =>
+    list(
+      "roles",
+      (config) => RoleService.getRoles({ ...roleFilters }, config),
+      (body) => {
+        roles.value = body.data || [];
+        Object.assign(roleMeta, body.meta || {});
+      },
+    );
+  const fetchUsers = () =>
+    list(
+      "users",
+      (config) =>
+        RoleService.getUsers(
+          { ...userFilters, is_active: userFilters.is_active || undefined },
+          config,
+        ),
+      (body) => {
+        users.value = body.data || [];
+        Object.assign(userMeta, body.meta || {});
+      },
+    );
+  const fetchRoleOptions = () =>
+    list(
+      "options",
+      (config) => RoleService.getRoles({ options: 1 }, config),
+      (body) => {
+        roleOptions.value = body.data || [];
+      },
+    );
   async function fetchPermissions() {
-    loading.value = true;
-    clearMessages();
-
+    if (catalogRequest) return catalogRequest;
+    if (
+      ![
+        "permission.view",
+        "role.assign-permission",
+        "user.assign-permission",
+      ].some(auth.hasPermission)
+    )
+      return;
+    catalogRequest = list(
+      "permissions",
+      (config) => RoleService.getPermissions(config),
+      (body) => {
+        permissionGroups.value = body.data || {};
+      },
+    );
     try {
-      const response = await RoleService.getPermissions();
-      permissionGroups.value = response.data?.data || {};
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
+      return await catalogRequest;
     } finally {
-      loading.value = false;
+      catalogRequest = null;
     }
   }
-
-  async function fetchUsers(search = "") {
-    loadingUsers.value = true;
-    clearMessages();
-
+  async function refreshAuth() {
     try {
-      const response = await RoleService.getUsers({
-        search,
-        per_page: 20,
-      });
-
-      users.value = response.data?.data || [];
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      loadingUsers.value = false;
+      await auth.fetchUser();
+    } catch {
+      /* AuthStore displays the verification failure; next guarded navigation retries. */
     }
+    window.dispatchEvent(new Event("auth:changed"));
+    localStorage.setItem("auth_sync", String(Date.now()));
   }
-
+  function patchUser(data) {
+    const index = users.value.findIndex((u) => u.id === data.id);
+    if (index >= 0) users.value[index] = data;
+  }
+  function cancel(kind) {
+    controllers.get(kind)?.abort();
+    controllers.delete(kind);
+    loading[kind] = false;
+  }
   async function loadData() {
-    loading.value = true;
-    clearMessages();
-
-    try {
-      const [rolesResponse, permissionsResponse, usersResponse] =
-        await Promise.all([
-          RoleService.getAll(),
-          RoleService.getPermissions(),
-          RoleService.getUsers({
-            per_page: 20,
-          }),
-        ]);
-
-      roles.value = rolesResponse.data?.data || [];
-      permissionGroups.value = permissionsResponse.data?.data || {};
-      users.value = usersResponse.data?.data || [];
-
-      return {
-        roles: rolesResponse,
-        permissions: permissionsResponse,
-        users: usersResponse,
-      };
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      loading.value = false;
-    }
+    await Promise.allSettled([
+      auth.hasPermission("role.view") ? fetchRoles() : Promise.resolve(),
+      fetchPermissions(),
+    ]);
   }
-
-  async function saveRole() {
-    savingRole.value = true;
-    clearMessages();
-
-    try {
-      let response;
-
-      if (selectedRole.value) {
-        response = await RoleService.update(selectedRole.value.id, {
-          name: form.name,
-          permissions: form.permissions,
-        });
-
-        message.value =
-          response.data?.message || "Cập nhật vai trò thành công.";
-      } else {
-        response = await RoleService.create({
-          name: form.name,
-          permissions: form.permissions,
-        });
-
-        message.value = response.data?.message || "Tạo vai trò thành công.";
-      }
-
-      await fetchRoles();
-      resetForm();
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      savingRole.value = false;
-    }
-  }
-
-  async function deleteRole(role) {
-    savingRole.value = true;
-    clearMessages();
-
-    try {
-      const response = await RoleService.delete(role.id);
-
-      message.value = response.data?.message || "Xóa vai trò thành công.";
-
-      if (selectedRole.value?.id === role.id) {
-        resetForm();
-      }
-
-      await fetchRoles();
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      savingRole.value = false;
-    }
-  }
-
-  async function assignRolesToUser() {
-    assigningRole.value = true;
-    clearMessages();
-
-    try {
-      const response = await RoleService.assignRolesToUser(
-        assignForm.user_id,
-        assignForm.roles,
-      );
-
-      message.value =
-        response.data?.message || "Gán vai trò cho người dùng thành công.";
-
-      await fetchUsers();
-
-      resetAssignForm();
-
-      return response;
-    } catch (error) {
-      setErrors(error);
-      throw error;
-    } finally {
-      assigningRole.value = false;
-    }
-  }
-
   return {
     roles,
-    users,
     permissionGroups,
-
+    users,
+    roleOptions,
     loading,
-    loadingUsers,
-    savingRole,
-    assigningRole,
-
-    selectedRole,
-    selectedUser,
-    userSearch,
-
-    form,
-    assignForm,
-
-    message,
-    errorMsg,
     errors,
-
-    totalRoles,
-    totalPermissions,
-    groupedRoleStats,
-
-    clearMessages,
-    resetForm,
-    fillForm,
-    togglePermission,
-    hasPermissionSelected,
-
-    selectUser,
-    clearSelectedUser,
-    toggleAssignRole,
-    hasAssignRoleSelected,
-    resetAssignForm,
-
+    roleFilters,
+    userFilters,
+    roleMeta,
+    userMeta,
     fetchRoles,
     fetchPermissions,
     fetchUsers,
+    fetchRoleOptions,
     loadData,
-    saveRole,
-    deleteRole,
-    assignRolesToUser,
+    refreshAuth,
+    patchUser,
+    cancel,
   };
 });

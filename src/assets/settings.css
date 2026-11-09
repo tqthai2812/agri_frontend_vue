@@ -1,0 +1,83 @@
+@reference "../style.css";
+.settings-card {
+  @apply min-w-0 rounded-2xl border border-border bg-surface p-5 sm:p-6 shadow-sm;
+}
+.settings-card-heading {
+  @apply flex items-start gap-3 mb-6;
+}
+.settings-section-icon {
+  @apply grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-xl text-primary;
+}
+.settings-label {
+  @apply mb-2 block text-sm font-semibold text-text;
+}
+.settings-input {
+  @apply w-full rounded-xl border border-border bg-surface px-3 py-3 text-sm text-text outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/10 read-only:cursor-default;
+}
+.settings-input[aria-invalid="true"] {
+  @apply border-red-400;
+}
+.settings-field-error {
+  @apply mt-2 text-xs text-red-600;
+}
+.settings-btn {
+  @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-border bg-surface px-4 py-2.5 text-sm font-semibold text-text transition hover:border-primary hover:text-primary cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed;
+}
+.settings-btn-primary {
+  @apply bg-primary border-primary text-white hover:bg-primary/90 hover:text-white;
+}
+.settings-alert {
+  @apply flex items-start gap-2 rounded-xl border px-4 py-3 text-sm leading-relaxed;
+}
+.settings-alert-error {
+  @apply border-red-200 bg-red-50 text-red-700;
+}
+.settings-alert-success {
+  @apply border-green-200 bg-green-50 text-green-700;
+}
+.settings-alert-notice {
+  @apply border-amber-200 bg-amber-50 text-amber-800;
+}
+.settings-switch {
+  @apply relative inline-flex h-6 w-11 shrink-0;
+}
+.settings-switch input {
+  @apply absolute inset-0 z-10 size-full cursor-pointer opacity-0 disabled:cursor-not-allowed;
+}
+.settings-switch-track {
+  @apply size-full rounded-full bg-border transition;
+}
+.settings-switch-track::after {
+  content: "";
+  @apply absolute top-0.5 left-0.5 size-5 rounded-full bg-white shadow-sm transition;
+}
+.settings-switch input:checked + .settings-switch-track {
+  @apply bg-primary;
+}
+.settings-switch input:checked + .settings-switch-track::after {
+  transform: translateX(20px);
+}
+.settings-switch input:focus-visible + .settings-switch-track {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+.settings-switch input:disabled + .settings-switch-track {
+  opacity: 0.5;
+}
+.settings-page :is(button, input):focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 3px;
+}
+fieldset:disabled .settings-input {
+  @apply opacity-60;
+}
+
+.dark .settings-alert-error {
+  @apply border-red-800 bg-red-950/30 text-red-300;
+}
+.dark .settings-alert-success {
+  @apply border-green-800 bg-green-950/30 text-green-300;
+}
+.dark .settings-alert-notice {
+  @apply border-amber-800 bg-amber-950/30 text-amber-300;
+}

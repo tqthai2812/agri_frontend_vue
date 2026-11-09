@@ -1,3 +1,5 @@
+import { firstDestination } from "@/router/adminAccess";
+
 export function authError(
   error,
   fallback = "Có lỗi xảy ra. Vui lòng thử lại.",
@@ -17,20 +19,7 @@ export function authError(
 }
 
 export function defaultDestination(authStore, router) {
-  const choices = [
-    ["dashboard.view", "admin-dashboard"],
-    ["product.view", "admin-products"],
-    ["category.view", "admin-categories"],
-    ["role.view", "admin-roles"],
-  ];
-
-  for (const [permission, name] of choices) {
-    if (authStore.hasPermission(permission) && router.hasRoute(name)) {
-      return { name };
-    }
-  }
-
-  return router.hasRoute("profile") ? { name: "profile" } : { path: "/" };
+  return firstDestination(authStore, router);
 }
 
 export function loginDestination(redirect, authStore, router) {

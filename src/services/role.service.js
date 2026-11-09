@@ -1,62 +1,47 @@
-import apiClient from "@/api/client";
+import api from "@/api/client";
 
 class RoleService {
-  async csrf() {
-    return apiClient.get("/sanctum/csrf-cookie");
+  csrf() {
+    return api.get("/sanctum/csrf-cookie");
   }
-
-  async getAll() {
-    return apiClient.get("/api/v1/roles");
+  getRoles(params = {}, config = {}) {
+    return api.get("/api/v1/roles", { ...config, params });
   }
-
-  async getPermissions() {
-    return apiClient.get("/api/v1/permissions");
+  getRole(id, params = {}) {
+    return api.get(`/api/v1/roles/${id}`, { params });
   }
-
-  async getUsers(params = {}) {
-    return apiClient.get("/api/v1/users", {
-      params,
-    });
+  getPermissions(config = {}) {
+    return api.get("/api/v1/permissions", config);
   }
-
-  async create(data) {
+  getUsers(params = {}, config = {}) {
+    return api.get("/api/v1/users", { ...config, params });
+  }
+  getUser(id) {
+    return api.get(`/api/v1/users/${id}`);
+  }
+  async createRole(data) {
     await this.csrf();
-
-    return apiClient.post("/api/v1/roles", {
-      name: data.name,
-      permissions: data.permissions || [],
-    });
+    return api.post("/api/v1/roles", data);
   }
-
-  async update(id, data) {
+  async updateRole(id, data) {
     await this.csrf();
-
-    return apiClient.put(`/api/v1/roles/${id}`, {
-      name: data.name,
-      permissions: data.permissions || [],
-    });
+    return api.put(`/api/v1/roles/${id}`, data);
   }
-
+  async deleteRole(id) {
+    await this.csrf();
+    return api.delete(`/api/v1/roles/${id}`);
+  }
   async syncPermissions(id, permissions) {
     await this.csrf();
-
-    return apiClient.put(`/api/v1/roles/${id}/permissions`, {
-      permissions,
-    });
+    return api.put(`/api/v1/roles/${id}/permissions`, { permissions });
   }
-
-  async delete(id) {
+  async assignRoles(id, roles) {
     await this.csrf();
-
-    return apiClient.delete(`/api/v1/roles/${id}`);
+    return api.put(`/api/v1/users/${id}/roles`, { roles });
   }
-
-  async assignRolesToUser(userId, roles) {
+  async assignPermissions(id, permissions) {
     await this.csrf();
-
-    return apiClient.put(`/api/v1/users/${userId}/roles`, {
-      roles,
-    });
+    return api.put(`/api/v1/users/${id}/permissions`, { permissions });
   }
 }
 

@@ -14,7 +14,7 @@ class UserService {
   }
 
   getRoles() {
-    return apiClient.get("/api/v1/roles");
+    return apiClient.get("/api/v1/roles", { params: { options: 1 } });
   }
 
   async createUser(formData) {

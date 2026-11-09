@@ -50,7 +50,7 @@ class AuthService {
   }
 
   async getUser() {
-    return apiClient.get("/api/user");
+    return apiClient.get("/api/user", { skipAuthEvents: true });
   }
 
   async forgotPassword(email) {

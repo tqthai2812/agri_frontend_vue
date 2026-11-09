@@ -1,8 +1,12 @@
 import { defineStore } from "pinia";
 import { computed, reactive, ref } from "vue";
+import { useAuthStore } from "@/stores/shared/authStore";
 import UserService from "@/services/admin/user.service";
 
 export const useUserStore = defineStore("user", () => {
+  const auth = useAuthStore();
+  const readOnly = ref(false);
+  let fetchSequence = 0;
   const users = ref([]);
   const roles = ref([]);
 
@@ -56,15 +60,11 @@ export const useUserStore = defineStore("user", () => {
   });
 
   const adminUsers = computed(() => {
-    return users.value.filter(
-      (user) => user.roles?.includes("admin") || user.role === "admin",
-    );
+    return users.value.filter((user) => user.roles?.includes("admin"));
   });
 
   const customerUsers = computed(() => {
-    return users.value.filter(
-      (user) => user.roles?.includes("customer") || user.role === "customer",
-    );
+    return users.value.filter((user) => user.roles?.includes("customer"));
   });
 
   function clearMessages() {
@@ -97,6 +97,7 @@ export const useUserStore = defineStore("user", () => {
 
   function resetForm() {
     selectedUser.value = null;
+    readOnly.value = false;
 
     form.name = "";
     form.email = "";
@@ -105,7 +106,7 @@ export const useUserStore = defineStore("user", () => {
     form.password_confirmation = "";
     form.avatar = null;
     form.is_active = true;
-    form.roles = [];
+    form.roles = ["customer"];
 
     if (avatarPreview.value && avatarPreview.value.startsWith("blob:")) {
       URL.revokeObjectURL(avatarPreview.value);
@@ -121,12 +122,13 @@ export const useUserStore = defineStore("user", () => {
     showModal.value = true;
   }
 
-  async function openEditModal(user) {
+  async function openEditModal(user, viewOnly = false) {
     loading.value = true;
     clearMessages();
 
     try {
       const response = await UserService.getUser(user.id);
+      readOnly.value = viewOnly;
       const data = response.data?.data || user;
 
       selectedUser.value = data;
@@ -184,12 +186,15 @@ export const useUserStore = defineStore("user", () => {
       formData.append("avatar", form.avatar);
     }
 
-    formData.append("roles", JSON.stringify(form.roles));
+    if (!selectedUser.value && auth.hasPermission("user.assign-role")) {
+      formData.append("roles", JSON.stringify(form.roles));
+    }
 
     return formData;
   }
 
   async function fetchUsers() {
+    const sequence = ++fetchSequence;
     loading.value = true;
     clearMessages();
 
@@ -202,6 +207,7 @@ export const useUserStore = defineStore("user", () => {
         per_page: filters.per_page,
       });
 
+      if (sequence !== fetchSequence) return response;
       users.value = response.data?.data || [];
 
       const responseMeta = response.data?.meta || {};
@@ -213,10 +219,10 @@ export const useUserStore = defineStore("user", () => {
 
       return response;
     } catch (error) {
-      setErrors(error);
+      if (sequence === fetchSequence) setErrors(error);
       throw error;
     } finally {
-      loading.value = false;
+      if (sequence === fetchSequence) loading.value = false;
     }
   }
 
@@ -238,7 +244,7 @@ export const useUserStore = defineStore("user", () => {
   }
 
   async function loadData() {
-    await Promise.all([fetchUsers(), fetchRoles()]);
+    await Promise.allSettled([fetchUsers(), fetchRoles()]);
   }
 
   async function saveUser() {
@@ -336,6 +342,11 @@ export const useUserStore = defineStore("user", () => {
     fetchUsers();
   }
 
+  function cancelList() {
+    fetchSequence++;
+    loading.value = false;
+  }
+
   function resetFilters() {
     filters.search = "";
     filters.role = "";
@@ -355,6 +366,7 @@ export const useUserStore = defineStore("user", () => {
     deleting,
 
     showModal,
+    readOnly,
 
     message,
     errorMsg,
@@ -383,6 +395,7 @@ export const useUserStore = defineStore("user", () => {
     setAvatar,
 
     fetchUsers,
+    cancelList,
     fetchRoles,
     loadData,
 

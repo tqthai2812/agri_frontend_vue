@@ -1,41 +1,28 @@
 <script setup>
 import { Icon } from "@iconify/vue";
-defineProps({ filters: { type: Object, required: true }, loading: Boolean });
-defineEmits(["refresh"]);
+const props = defineProps({ filters: { type: Object, required: true } });
+function resetFilters() {
+  Object.assign(props.filters, { search: "", is_active: "", per_page: 15 });
+}
 </script>
+
 <template>
-  <div class="mb-5 flex flex-col gap-3 sm:flex-row">
-    <label class="relative flex-1">
+  <div class="mb-5 flex flex-wrap gap-3">
+    <label class="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
       <span class="sr-only">Tìm kiếm</span>
-      <Icon
-        icon="solar:magnifer-linear"
-        class="absolute left-3 top-1/2 -translate-y-1/2 text-text-light"
-      />
-      <input
-        v-model="filters.search"
-        type="search"
-        maxlength="255"
-        class="form-control !pl-10"
-        placeholder="Tìm kiếm..."
-      />
+      <Icon icon="solar:magnifer-bold" class="text-text-light" />
+      <input v-model="filters.search" type="search" maxlength="255"
+        class="w-full bg-transparent text-sm outline-none" placeholder="Tìm kiếm..." />
     </label>
-    <select
-      v-model="filters.is_active"
-      class="form-control sm:!w-48"
-      aria-label="Lọc trạng thái"
-    >
+    <select v-model="filters.is_active" aria-label="Lọc trạng thái"
+      class="filter-select flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none">
       <option value="">Tất cả trạng thái</option>
       <option value="1">Đang hiển thị</option>
       <option value="0">Đang ẩn / Bản nháp</option>
     </select>
-    <button
-      type="button"
-      :disabled="loading"
-      class="btn-outline cursor-pointer disabled:cursor-not-allowed"
-      @click="$emit('refresh')"
-    >
-      <Icon icon="solar:refresh-bold" :class="{ 'animate-spin': loading }" />
-      Tải lại
+    <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" @click="resetFilters">
+      <Icon icon="solar:restart-bold" />
+      Xóa lọc
     </button>
   </div>
 </template>

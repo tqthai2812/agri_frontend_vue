@@ -157,8 +157,9 @@ const buttons = [
   ["Trích dẫn", "toggleBlockquote", "blockquote"],
 ];
 </script>
+
 <template>
-  <div
+<div
     v-if="editor"
     ref="editorRoot"
     class="news-editor-shell"
@@ -183,7 +184,7 @@ const buttons = [
           <option value="2">Tiêu đề mục H2</option>
           <option value="3">Tiêu đề mục H3</option>
         </select>
-        <button
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           v-for="b in buttons"
           :key="b[1]"
           type="button"
@@ -194,11 +195,11 @@ const buttons = [
         >
           {{ b[0] }}
         </button>
-        <button type="button" :disabled="disabled" @click="link">
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" :disabled="disabled" @click="link">
           Liên kết</button
-        ><button type="button" :disabled="disabled" @click="emit('image')">
+        ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" :disabled="disabled" @click="emit('image')">
           Chèn ảnh</button
-        ><button
+        ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           type="button"
           :disabled="disabled"
           @click="
@@ -212,21 +213,21 @@ const buttons = [
           Bảng
         </button>
         <template v-if="editor.isActive('table')"
-          ><button type="button" @click="run('addRowAfter')">+ Hàng</button
-          ><button type="button" @click="run('addColumnAfter')">+ Cột</button
-          ><button type="button" @click="run('deleteRow')">Xóa hàng</button
-          ><button type="button" @click="run('deleteColumn')">Xóa cột</button
-          ><button type="button" @click="run('deleteTable')">
+          ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="run('addRowAfter')">+ Hàng</button
+          ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="run('addColumnAfter')">+ Cột</button
+          ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="run('deleteRow')">Xóa hàng</button
+          ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="run('deleteColumn')">Xóa cột</button
+          ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="run('deleteTable')">
             Xóa bảng
           </button></template
         >
-        <button
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           type="button"
           :disabled="!editor.can().undo() || disabled"
           @click="run('undo')"
         >
           Hoàn tác</button
-        ><button
+        ><button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           type="button"
           :disabled="!editor.can().redo() || disabled"
           @click="run('redo')"
@@ -240,19 +241,19 @@ const buttons = [
         role="toolbar"
         aria-label="Định dạng ảnh"
       >
-        <button
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           type="button"
           @click="editor.commands.updateAttributes('image', { width: null })"
         >
           Ảnh rộng
         </button>
-        <button
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
           type="button"
           @click="editor.commands.updateAttributes('image', { width: 360 })"
         >
           Ảnh nhỏ
         </button>
-        <button type="button" @click="captionImage">Sửa chú thích</button>
+        <button class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" type="button" @click="captionImage">Sửa chú thích</button>
       </div>
     </div>
     <div class="editor nf-article"><EditorContent :editor="editor" /></div>

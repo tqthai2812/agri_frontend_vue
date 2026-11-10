@@ -15,7 +15,8 @@ const auth = useAuthStore();
     <Icon
       icon="solar:refresh-bold"
       class="mx-auto mb-2 animate-spin text-3xl"
-    />Đang tải hướng dẫn...
+    />
+    <p class="text-sm">Đang tải hướng dẫn...</p>
   </div>
   <div v-else class="overflow-x-auto">
     <table class="w-full min-w-[1050px]">
@@ -51,7 +52,7 @@ const auth = useAuthStore();
                 ><Icon icon="solar:document-text-bold-duotone" class="text-xl"
               /></span>
               <div class="max-w-[240px]">
-                <strong class="block text-sm">{{
+                <strong class="block text-sm font-semibold">{{
                   item.variant?.product?.product_name
                 }}</strong>
                 <span class="text-xs text-text-light"
@@ -118,12 +119,12 @@ const auth = useAuthStore();
                 item.is_active &&
                 (!item.crop?.is_active || !item.variant?.product?.is_show)
               "
-              class="mt-1 block text-amber-600"
+              class="mt-1 block text-xs text-amber-600"
               >Cây trồng / sản phẩm đang ẩn</small
             >
             <small
               v-else-if="item.is_active && !item.can_calculate"
-              class="mt-1 block text-text-light"
+              class="mt-1 block text-xs text-text-light"
               >Chỉ đọc hướng dẫn</small
             >
           </td>
@@ -163,7 +164,7 @@ const auth = useAuthStore();
           </td>
         </tr>
         <tr v-if="!items.length">
-          <td colspan="7" class="p-8 text-center text-text-light">
+          <td colspan="7" class="p-8 text-center text-sm text-text-light">
             Chưa có hướng dẫn phù hợp.
           </td>
         </tr>

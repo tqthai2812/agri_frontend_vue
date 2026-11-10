@@ -23,7 +23,7 @@ function caption(event) {
 </script>
 
 <template>
-  <NodeViewWrapper
+<NodeViewWrapper
     as="figure"
     class="news-image-node"
     :class="{ 'is-selected': selected }"
@@ -39,7 +39,7 @@ function caption(event) {
     <button
       v-if="editable"
       type="button"
-      class="news-image-remove"
+      class="news-image-remove cursor-pointer disabled:cursor-not-allowed"
       aria-label="Xóa ảnh khỏi nội dung"
       title="Xóa ảnh khỏi nội dung"
       @pointerdown.stop.prevent

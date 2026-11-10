@@ -14,7 +14,8 @@ const auth = useAuthStore();
     <Icon
       icon="solar:refresh-bold"
       class="mx-auto mb-2 animate-spin text-3xl"
-    />Đang tải cây trồng...
+    />
+    <p class="text-sm">Đang tải cây trồng...</p>
   </div>
   <div v-else class="overflow-x-auto">
     <table class="w-full min-w-[650px]">
@@ -44,17 +45,17 @@ const auth = useAuthStore();
           <td class="p-3">
             <div class="flex items-center gap-3">
               <span
-                class="grid size-10 place-items-center rounded-xl bg-primary/10 text-primary"
+                class="grid size-10 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary"
                 ><Icon icon="solar:leaf-bold-duotone" class="text-xl"
               /></span>
               <div>
-                <strong class="block text-sm">{{ item.name }}</strong
-                ><small class="text-text-light">ID: {{ item.id }}</small>
+                <strong class="block text-sm font-semibold">{{ item.name }}</strong
+                ><small class="text-xs text-text-light">ID: {{ item.id }}</small>
               </div>
             </div>
           </td>
           <td class="p-3 text-sm text-text-light">{{ item.slug }}</td>
-          <td class="p-3 text-sm">{{ item.usage_guides_count ?? 0 }}</td>
+          <td class="p-3 font-mono text-sm">{{ item.usage_guides_count ?? 0 }}</td>
           <td class="p-3">
             <span :class="item.is_active ? 'badge-active' : 'badge-inactive'">{{
               item.is_active ? "Đang hiển thị" : "Đang ẩn"
@@ -96,7 +97,7 @@ const auth = useAuthStore();
           </td>
         </tr>
         <tr v-if="!items.length">
-          <td colspan="5" class="p-8 text-center text-text-light">
+          <td colspan="5" class="p-8 text-center text-sm text-text-light">
             Chưa có cây trồng phù hợp.
           </td>
         </tr>

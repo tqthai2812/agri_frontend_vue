@@ -1,4 +1,9 @@
 <script setup>
+import { Icon } from "@iconify/vue";
+import ArticleFilters from "@/components/admin/news/ArticleFilters.vue";
+import ArticleTable from "@/components/admin/news/ArticleTable.vue";
+import NewsAdminPagination from "@/components/admin/news/NewsAdminPagination.vue";
+import "@/assets/news-admin.css";
 import { ref, onMounted } from "vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import {
@@ -52,108 +57,25 @@ async function remove(n) {
   }
 }
 onMounted(() => load());
+
+function resetFilters() { search.value = ""; status.value = ""; return load(); }
 </script>
+
 <template>
-  <div class="nf-news admin stack">
-    <div class="row between">
-      <div>
-        <h1>Quản lý bài viết</h1>
-        <p class="muted">Biên tập, xuất bản và kết nối với độc giả.</p>
-      </div>
-      <div class="row">
-        <RouterLink
-          v-if="auth.hasPermission('article.update')"
-          class="button"
-          :to="{ name: 'admin-news-comments' }"
-          >Duyệt bình luận</RouterLink
-        ><RouterLink
-          v-if="auth.hasPermission('article.create')"
-          class="button primary"
-          :to="{ name: 'admin-article-create' }"
-          >+ Viết bài mới</RouterLink
-        >
-      </div>
-    </div>
-    <form class="row" @submit.prevent="load()">
-      <input
-        v-model="search"
-        style="flex: 1; min-width: 200px"
-        placeholder="Tìm theo tiêu đề…"
-      /><select v-model="status" style="width: 180px" @change="load()">
-        <option value="">Tất cả trạng thái</option>
-        <option v-for="(label, key) in labels" :key="key" :value="key">
-          {{ label }}
-        </option></select
-      ><button :disabled="busy">Tìm kiếm</button>
-    </form>
-    <p v-if="error" class="error" role="alert">{{ error }}</p>
-    <div class="panel" style="overflow-x: auto">
-      <p v-if="busy">Đang tải…</p>
-      <table v-else class="list">
-        <thead>
-          <tr>
-            <th>Bài viết</th>
-            <th>Tác giả</th>
-            <th>Ngày xuất bản</th>
-            <th>Lượt xem</th>
-            <th>Trạng thái</th>
-            <th>Thao tác</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="n in rows" :key="n.id">
-            <td>
-              <strong>{{ n.title }}</strong>
-              <div class="muted">{{ n.subtitle }}</div>
-            </td>
-            <td>{{ n.author }}</td>
-            <td>{{ dateText(n.published_at) }}</td>
-            <td>{{ n.views }}</td>
-            <td>
-              <span class="tag">{{ labels[n.status] }}</span>
-            </td>
-            <td>
-              <div class="row">
-                <RouterLink
-                  v-if="auth.hasPermission('article.update')"
-                  class="button"
-                  :to="{ name: 'admin-article-edit', params: { id: n.id } }"
-                  >Sửa</RouterLink
-                ><RouterLink
-                  v-if="n.status === 'published'"
-                  class="button"
-                  :to="{ name: 'news-detail', params: { slug: n.slug } }"
-                  >Xem</RouterLink
-                ><button
-                  v-if="auth.hasPermission('article.delete')"
-                  @click="remove(n)"
-                >
-                  Xóa
-                </button>
-              </div>
-            </td>
-          </tr>
-          <tr v-if="!rows.length">
-            <td colspan="6" class="empty">Chưa có bài viết phù hợp.</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-    <div class="row pager">
-      <button
-        :disabled="busy || meta.current_page <= 1"
-        @click="load(meta.current_page - 1)"
-      >
-        Trước</button
-      ><span
-        >{{ meta.current_page || 1 }} / {{ meta.last_page || 1 }} ·
-        {{ meta.total || 0 }} bài</span
-      ><button
-        :disabled="busy || meta.current_page >= meta.last_page"
-        @click="load(meta.current_page + 1)"
-      >
-        Sau
-      </button>
+<div class="news-studio-admin">
+  <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <div><h1 class="text-2xl font-bold">Quản lý bài viết</h1><p class="text-sm text-text-light">{{ meta.total || 0 }} bài viết phù hợp bộ lọc</p></div>
+    <div class="flex flex-wrap gap-3">
+      <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" :disabled="busy" @click="load()"><Icon icon="solar:refresh-bold" :class="busy ? 'animate-spin' : ''" />Tải lại</button>
+      <RouterLink v-if="auth.hasPermission('article.update')" class="btn-outline-sm cursor-pointer" :to="{ name: 'admin-news-comments' }"><Icon icon="solar:chat-round-dots-bold" />Duyệt bình luận</RouterLink>
+      <RouterLink v-if="auth.hasPermission('article.create')" class="btn-primary cursor-pointer" :to="{ name: 'admin-article-create' }"><Icon icon="solar:add-circle-bold" />Viết bài mới</RouterLink>
     </div>
   </div>
+  <div v-if="error" role="alert" class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"><Icon icon="solar:danger-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" /><span>{{ error }}</span></div>
+  <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <ArticleFilters v-model:search="search" v-model:status="status" :labels="labels" :busy="busy" @submit="load()" @reset="resetFilters" />
+    <ArticleTable :rows="rows" :labels="labels" :busy="busy" @delete="remove" />
+    <NewsAdminPagination :meta="meta" :count="rows.length" label="bài viết" :busy="busy" @change="load" />
+  </section>
+</div>
 </template>

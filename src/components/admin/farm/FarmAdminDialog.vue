@@ -58,7 +58,7 @@ onBeforeUnmount(() => {
 <template>
   <Teleport to="body">
     <div
-      class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/45 p-3 sm:p-6"
+      class="fixed inset-0 z-[1000] flex items-center justify-center bg-black/50 p-4 sm:p-6"
       @click.self="close"
     >
       <section
@@ -67,24 +67,24 @@ onBeforeUnmount(() => {
         aria-modal="true"
         :aria-label="title"
         tabindex="-1"
-        class="flex max-h-[92dvh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-surface text-text shadow-2xl outline-none"
+        class="flex max-h-[92dvh] w-full max-w-5xl flex-col overflow-hidden rounded-2xl bg-surface text-text shadow-2xl outline-none"
         @keydown="keydown"
       >
         <header
-          class="flex shrink-0 items-center justify-between gap-4 border-b border-border p-5"
+          class="flex shrink-0 items-center justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6"
         >
-          <h2 class="text-lg font-bold">{{ title }}</h2>
+          <h2 class="text-xl font-bold">{{ title }}</h2>
           <button
             type="button"
             :disabled="busy"
             aria-label="Đóng cửa sổ"
-            class="grid size-9 cursor-pointer place-items-center rounded-xl hover:bg-primary/10 disabled:cursor-not-allowed"
+            class="btn-outline-icon cursor-pointer disabled:cursor-not-allowed"
             @click="close"
           >
-            <Icon icon="solar:close-circle-linear" class="text-2xl" />
+            <Icon icon="solar:close-circle-bold" class="text-xl" />
           </button>
         </header>
-        <div class="overflow-y-auto p-5"><slot /></div>
+        <div class="min-h-0 overflow-y-auto p-5 sm:p-6"><slot /></div>
       </section>
     </div>
   </Teleport>

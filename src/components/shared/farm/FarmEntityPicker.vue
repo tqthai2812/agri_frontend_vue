@@ -75,8 +75,8 @@ onBeforeUnmount(() => {
 
 <template>
   <div class="farm-picker space-y-2">
-    <label class="block text-sm font-semibold">
-      {{ label }}
+    <label class="form-group">
+      <span class="form-label">{{ label }}</span>
       <input
         v-model="search"
         type="search"
@@ -84,12 +84,12 @@ onBeforeUnmount(() => {
         :disabled="disabled"
         :aria-label="'Tìm ' + label.toLowerCase()"
         placeholder="Nhập từ khóa để tìm..."
-        class="form-control mt-2"
+        class="form-control"
       />
     </label>
     <select
       :value="modelValue"
-      class="form-control"
+      class="form-control cursor-pointer disabled:cursor-not-allowed"
       :disabled="disabled || loading"
       :aria-label="'Chọn ' + label.toLowerCase()"
       @change="emit('update:modelValue', $event.target.value)"
@@ -102,14 +102,14 @@ onBeforeUnmount(() => {
         {{ formatLabel(item) }}
       </option>
     </select>
-    <p v-if="loading" role="status" class="text-xs opacity-70">
+    <p v-if="loading" role="status" class="text-xs text-text-light">
       Đang tải lựa chọn...
     </p>
     <p v-if="error" role="alert" class="text-xs text-red-600">
       {{ error }}
       <button
         type="button"
-        class="cursor-pointer underline"
+        class="cursor-pointer underline disabled:cursor-not-allowed"
         :disabled="disabled"
         @click="load()"
       >
@@ -125,7 +125,7 @@ onBeforeUnmount(() => {
     >
       Tải thêm lựa chọn
     </button>
-    <p v-if="!loading && !error && !items.length" class="text-xs opacity-70">
+    <p v-if="!loading && !error && !items.length" class="text-xs text-text-light">
       Không có lựa chọn phù hợp.
     </p>
   </div>

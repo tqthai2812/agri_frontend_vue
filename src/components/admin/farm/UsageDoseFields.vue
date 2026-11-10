@@ -14,25 +14,25 @@ const ranges = [
 ];
 </script>
 <template>
-  <section class="rounded-xl border border-border p-4">
-    <h3 class="font-bold">Định mức sử dụng</h3>
-    <p class="mt-1 text-xs leading-5 text-text-light">
+  <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+    <h3 class="text-lg font-bold">Định mức sử dụng</h3>
+    <p class="text-sm text-text-light">
       Nhập theo nhãn đã kiểm tra. Định mức cố định: nhập hai ô bằng nhau. Chưa
       có thông tin: để trống cả hai ô.
     </p>
-    <label class="mt-4 block text-sm font-semibold"
-      >Đơn vị lượng sản phẩm
-      <select v-model="form.dose_unit" class="form-control mt-2 sm:!w-56">
+    <label class="form-group mt-5">
+      <span class="form-label">Đơn vị lượng sản phẩm</span>
+      <select v-model="form.dose_unit" class="form-control cursor-pointer disabled:cursor-not-allowed sm:!w-56">
         <option value="">Chưa có định mức</option>
         <option value="g">g (gam)</option>
         <option value="ml">ml (mililít)</option>
       </select>
-      <small v-if="errors.dose_unit" class="text-red-600">{{
+      <small v-if="errors.dose_unit" class="text-xs font-normal text-red-600">{{
         errors.dose_unit[0]
       }}</small>
     </label>
     <div v-for="range in ranges" :key="range.key" class="mt-4">
-      <p class="text-sm font-semibold">
+      <p class="form-label">
         {{ range.label }}
         <span class="text-xs font-normal text-text-light"
           >({{
@@ -47,15 +47,15 @@ const ranges = [
         <label
           v-for="bound in ['min', 'max']"
           :key="bound"
-          class="text-xs text-text-light"
-          >{{ bound === "min" ? "Tối thiểu" : "Tối đa" }}
+          class="form-group">
+          <span class="form-label">{{ bound === "min" ? "Tối thiểu" : "Tối đa" }}</span>
           <input
             v-model="form[range.key + '_' + bound]"
             type="text"
             inputmode="decimal"
             maxlength="15"
             pattern="[0-9]{1,8}([.][0-9]{1,6})?"
-            class="form-control mt-1"
+            class="form-control"
             placeholder="Để trống nếu chưa có"
             :aria-label="
               range.label + (bound === 'min' ? ' tối thiểu' : ' tối đa')
@@ -63,7 +63,7 @@ const ranges = [
           />
           <small
             v-if="errors[range.key + '_' + bound]"
-            class="block text-red-600"
+            class="block text-xs font-normal text-red-600"
             >{{ errors[range.key + "_" + bound][0] }}</small
           >
         </label>

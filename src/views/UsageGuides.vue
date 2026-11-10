@@ -54,21 +54,27 @@ onMounted(() => load());
 </script>
 <template>
   <div>
-    <div class="mb-6 flex flex-wrap items-start justify-between gap-4">
+    <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
       <div>
-        <h1 class="text-2xl font-bold">Hướng dẫn sử dụng vật tư</h1>
-        <p class="mt-1 text-sm text-text-light">
-          Gắn định mức với đúng biến thể, cây trồng và điều kiện sử dụng.
+        <h1 class="text-2xl font-bold">Quản lý hướng dẫn sử dụng vật tư</h1>
+        <p class="text-sm text-text-light">
+          {{ meta.total }} hướng dẫn phù hợp bộ lọc
         </p>
       </div>
       <div class="flex flex-wrap gap-3">
-        <RouterLink :to="{ name: 'farm-utilities' }" class="btn-outline"
-          >Xem tiện ích</RouterLink
+        <button
+          type="button"
+          class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+          :disabled="loading"
+          @click="load(meta.current_page)"
         >
+          <Icon icon="solar:refresh-bold" :class="loading ? 'animate-spin' : ''" />
+          Tải lại
+        </button>
         <button
           v-if="auth.hasPermission('usage-guide.create')"
           type="button"
-          class="btn-primary cursor-pointer"
+          class="btn-primary cursor-pointer disabled:cursor-not-allowed"
           :disabled="saving"
           @click="open()"
         >
@@ -80,7 +86,7 @@ onMounted(() => load());
       <RouterLink
         v-if="auth.hasPermission('crop.view')"
         :to="{ name: 'admin-crops' }"
-        class="btn-outline"
+        class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
         :class="{
           '!border-primary !text-primary !bg-primary/5':
             $route.name === 'admin-crops',
@@ -90,7 +96,7 @@ onMounted(() => load());
       <RouterLink
         v-if="auth.hasPermission('usage-guide.view')"
         :to="{ name: 'admin-usage-guides' }"
-        class="btn-outline"
+        class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
         :class="{
           '!border-primary !text-primary !bg-primary/5':
             $route.name === 'admin-usage-guides',
@@ -98,32 +104,25 @@ onMounted(() => load());
         >Hướng dẫn sử dụng</RouterLink
       >
     </nav>
-    <p
+    <div
       v-if="message"
       role="status"
-      class="mb-4 rounded-xl bg-green-50 p-4 text-sm text-green-700"
+      class="mb-5 flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700"
     >
-      {{ message }}
-    </p>
-    <p
+      <Icon icon="solar:check-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <span>{{ message }}</span>
+    </div>
+    <div
       v-if="error"
       role="alert"
-      class="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-600"
+      class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"
     >
-      {{ error }}
-    </p>
-    <section class="rounded-2xl border border-border bg-surface p-4 sm:p-6">
-      <div class="mb-4 flex items-center justify-between gap-3">
-        <h2 class="font-bold">Danh sách hướng dẫn sử dụng vật tư</h2>
-        <span
-          class="rounded-lg bg-primary/10 px-3 py-1 text-sm font-semibold text-primary"
-          >{{ meta.total }} kết quả</span
-        >
-      </div>
+      <Icon icon="solar:danger-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <span>{{ error }}</span>
+    </div>
+    <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
       <FarmAdminToolbar
         :filters="filters"
-        :loading="loading"
-        @refresh="load(meta.current_page)"
       />
       <UsageGuideTable
         :items="items"
@@ -148,7 +147,7 @@ onMounted(() => load());
       <p
         v-if="formError"
         role="alert"
-        class="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-600"
+        class="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"
       >
         {{ formError }}
       </p>

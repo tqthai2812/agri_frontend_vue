@@ -32,7 +32,7 @@ const NewsDetail = () => import("@/views/client/NewsDetail.vue");
 
 const Contact = () => import("@/views/client/Contact.vue");
 
-const Diagnosis = () => import("@/views/client/Diagnosis.vue");
+const FarmUtilities = () => import("@/views/client/FarmUtilities.vue");
 
 const VoucherWallet = () => import("@/views/client/VoucherWallet.vue");
 
@@ -97,14 +97,16 @@ const clientRoutes = [
       },
 
       {
+        path: "farm-utilities",
+        name: "farm-utilities",
+        component: FarmUtilities,
+        meta: { title: "Tiện ích nhà nông", public: true },
+      },
+      {
         path: "diagnosis",
         name: "diagnosis",
-        component: Diagnosis,
-
-        meta: {
-          title: "Chẩn đoán bệnh lúa",
-          public: true,
-        },
+        redirect: { name: "farm-utilities" },
+        meta: { title: "Tiện ích nhà nông", public: true },
       },
 
       {

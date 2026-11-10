@@ -319,12 +319,40 @@ async function purchase(payload, buyNow = false) {
         if (disposed || version !== loadVersion) return;
 
         if (buyNow) {
-            showToast("Đã thêm vào giỏ hàng, chuyển đến thanh toán...");
+            // Chọn theo package_id, không theo product_id: một sản phẩm có thể
+            // có nhiều biến thể/quy cách và mỗi dòng giỏ có ID riêng.
+            const addedItem = cartStore.items.find(
+                (item) =>
+                    String(item.package_id ?? item.package?.id) ===
+                    String(data.package_id),
+            );
+            const cartItemId = Number(addedItem?.id);
 
+            if (!Number.isSafeInteger(cartItemId) || cartItemId < 1) {
+                showToast(
+                    "Đã thêm sản phẩm vào giỏ nhưng chưa xác định được dòng để chọn. Vui lòng mở giỏ hàng để kiểm tra.",
+                );
+                return;
+            }
+
+            // Cart.vue nhận danh sách này khi tải trang; chỉ chọn dòng vừa mua.
+            cartStore.setCheckoutItemIds([cartItemId]);
             window.clearTimeout(navigationTimer);
-            navigationTimer = window.setTimeout(() => {
-                router.push("/checkout");
-            }, 500);
+
+            try {
+                const failure = await router.push({ name: "cart" });
+
+                if (failure) {
+                    showToast(
+                        "Đã thêm sản phẩm vào giỏ nhưng chưa mở được trang giỏ hàng. Vui lòng mở giỏ để kiểm tra.",
+                    );
+                }
+            } catch {
+                // Không gửi lại yêu cầu thêm giỏ nếu chỉ việc điều hướng bị lỗi.
+                showToast(
+                    "Đã thêm sản phẩm vào giỏ nhưng chưa mở được trang giỏ hàng. Vui lòng mở giỏ để kiểm tra.",
+                );
+            }
         } else {
             showToast(`Đã thêm ${data.quantity} sản phẩm vào giỏ hàng.`);
         }

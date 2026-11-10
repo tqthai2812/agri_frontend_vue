@@ -31,6 +31,21 @@ const adminRoutes = [
     component: AppLayout,
     meta: { requiresAuth: true, area: "admin" },
     children: [
+      {
+        path: "farm-utilities/crops",
+        name: "admin-crops",
+        component: () => import("@/views/Crops.vue"),
+        meta: { title: "Cây trồng", requiredPermission: "crop.view" },
+      },
+      {
+        path: "farm-utilities/usage-guides",
+        name: "admin-usage-guides",
+        component: () => import("@/views/UsageGuides.vue"),
+        meta: {
+          title: "Hướng dẫn sử dụng vật tư",
+          requiredPermission: "usage-guide.view",
+        },
+      },
       ...newsAdminRoutes,
       {
         path: "permissions",

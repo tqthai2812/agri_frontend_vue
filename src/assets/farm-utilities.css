@@ -1,0 +1,59 @@
+.nf-farm .farm-input,
+.nf-farm .form-control {
+  display: block;
+  width: 100%;
+  min-height: 44px;
+  border: 1px solid #cdded2;
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  color: #334c3c;
+  font-size: 14px;
+  line-height: 1.5;
+  outline: none;
+}
+.nf-farm .farm-input:focus,
+.nf-farm .form-control:focus {
+  border-color: #07532b;
+  box-shadow: 0 0 0 3px #07532b14;
+}
+.nf-farm .farm-button,
+.nf-farm .farm-outline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  border: 1px solid #07532b;
+  border-radius: 12px;
+  padding: 10px 16px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.nf-farm .farm-button {
+  background: #07532b;
+  color: white;
+}
+.nf-farm .farm-outline {
+  background: white;
+  color: #07532b;
+}
+.nf-farm .farm-button:hover:not(:disabled) {
+  background: #063f22;
+}
+.nf-farm button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.nf-farm button:focus-visible,
+.nf-farm a:focus-visible {
+  outline: 3px solid #d2a900;
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .nf-farm * {
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+  }
+}

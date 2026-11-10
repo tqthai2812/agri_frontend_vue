@@ -63,6 +63,17 @@ export const adminSections = [
     ],
   },
   {
+    title: "TIỆN ÍCH NHÀ NÔNG",
+    items: [
+      ["admin-crops", "Cây trồng", "solar:leaf-bold-duotone"],
+      [
+        "admin-usage-guides",
+        "Hướng dẫn sử dụng",
+        "solar:document-text-bold-duotone",
+      ],
+    ],
+  },
+  {
     title: "HỆ THỐNG",
     items: [
       [

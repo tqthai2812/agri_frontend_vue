@@ -8,6 +8,16 @@ import sharedRoutes from "./routes/shared";
 
 const router = createRouter({
   history: createWebHistory(),
+  scrollBehavior(to, from, savedPosition) {
+    // Back/Forward: khôi phục vị trí mà Vue Router đã lưu.
+    if (savedPosition) return savedPosition;
+
+    // Đổi bộ lọc/query trên cùng một trang: giữ chỗ đang xem.
+    if (to.path === from.path) return false;
+
+    // Mở trang khác, kể cả đổi /products/1 sang /products/2.
+    return { left: 0, top: 0 };
+  },
   routes: [
     ...authRoutes,
     ...clientRoutes,

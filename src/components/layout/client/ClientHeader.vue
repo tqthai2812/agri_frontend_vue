@@ -1,5 +1,6 @@
 <script setup>
 import { computed, onMounted, ref, watch } from "vue";
+import { useRoute } from "vue-router";
 import ClientTopBar from "./header/ClientTopBar.vue";
 import ClientNavbar from "./header/ClientNavbar.vue";
 import ClientMobileMenu from "./header/ClientMobileMenu.vue";
@@ -9,6 +10,7 @@ import ClientProductService from "@/services/client/clientProduct.service";
 import { useAuthStore } from "@/stores/shared/authStore";
 import { useCartStore } from "@/stores/client/cartStore";
 
+const route = useRoute();
 const authStore = useAuthStore();
 const cartStore = useCartStore();
 
@@ -70,12 +72,21 @@ async function fetchCartCount() {
   }
 
   if (typeof cartStore.fetchCart === "function") {
-    await cartStore.fetchCart();
+    try {
+      await cartStore.fetchCart();
+    } catch (error) {
+      if (error.response?.status !== 401)
+        console.error("Không tải được số lượng giỏ hàng:", error);
+    }
     return;
   }
 
   if (typeof cartStore.getCart === "function") {
-    await cartStore.getCart();
+    try {
+      await cartStore.getCart();
+    } catch {
+      /* Lỗi giỏ hàng không chặn điều hướng. */
+    }
   }
 }
 
@@ -105,21 +116,43 @@ watch(
     fetchCartCount();
   },
 );
+watch(
+  () => route.fullPath,
+  () => {
+    searchOpen.value = false;
+    mobileMenuOpen.value = false;
+  },
+);
 </script>
 
 <template>
-  <div class="relative z-50 font-sans">
+  <div
+    data-client-header
+    class="sticky top-0 z-50 shrink-0 bg-white font-sans shadow-sm"
+  >
     <ClientTopBar />
 
     <div class="relative">
-      <ClientNavbar :categories="categories" :cart-count="cartCount" :wishlist-count="wishlistCount"
-        :search-open="searchOpen" :mobile-menu-open="mobileMenuOpen" @toggle-search="toggleSearch"
-        @toggle-mobile="toggleMobileMenu" />
+      <ClientNavbar
+        :categories="categories"
+        :cart-count="cartCount"
+        :wishlist-count="wishlistCount"
+        :search-open="searchOpen"
+        :mobile-menu-open="mobileMenuOpen"
+        @toggle-search="toggleSearch"
+        @toggle-mobile="toggleMobileMenu"
+      />
 
       <SearchPanel :open="searchOpen" @close="searchOpen = false" />
 
-      <ClientMobileMenu :open="mobileMenuOpen" :categories="categories" :cart-count="cartCount"
-        :wishlist-count="wishlistCount" @close="mobileMenuOpen = false" @search="openMobileSearch" />
+      <ClientMobileMenu
+        :open="mobileMenuOpen"
+        :categories="categories"
+        :cart-count="cartCount"
+        :wishlist-count="wishlistCount"
+        @close="mobileMenuOpen = false"
+        @search="openMobileSearch"
+      />
     </div>
   </div>
 </template>

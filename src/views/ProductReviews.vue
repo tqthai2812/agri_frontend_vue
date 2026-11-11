@@ -119,257 +119,369 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <div>
-        <header class="mb-6 flex flex-wrap items-center justify-between gap-4">
-            <div>
-                <h1 class="text-2xl font-bold">Quản lý đánh giá</h1>
-                <p class="mt-1 text-sm text-text-light">Theo dõi nhận xét và phản hồi khách hàng.</p>
-            </div>
-            <button type="button" class="btn-outline-sm" :disabled="store.loading || store.saving" @click="reloadList">
-                <Icon icon="solar:refresh-bold" :class="{ 'animate-spin': store.loading }" />Tải lại
-            </button>
+  <div>
+    <header class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+      <div>
+        <h1 class="text-2xl font-bold">Quản lý đánh giá</h1>
+        <p class="text-sm text-text-light">{{ store.meta.total }} đánh giá phù hợp bộ lọc</p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+          :disabled="store.loading || store.saving" @click="reloadList">
+          <Icon icon="solar:refresh-bold" :class="store.loading ? 'animate-spin' : ''" />
+          Tải lại
+        </button>
+      </div>
+    </header>
+
+    <div class="mb-3 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+      <div v-for="card in [
+        ['total', 'Tổng đánh giá'], ['published', 'Công khai'], ['hidden', 'Đã ẩn'],
+        ['pending', 'Chờ duyệt'], ['unanswered', 'Chưa trả lời'],
+      ]" :key="card[0]" class="rounded-2xl border-l-4 bg-surface p-4 shadow-sm"
+        :class="{
+          'border-l-info': card[0] === 'total',
+          'border-l-success': card[0] === 'published',
+          'border-l-danger': card[0] === 'hidden',
+          'border-l-warning': card[0] === 'pending',
+          'border-l-primary': card[0] === 'unanswered',
+        }">
+        <div class="text-xs font-medium text-text-light">{{ card[1] }}</div>
+        <strong class="mt-1 block font-mono text-2xl font-bold"
+          :class="{
+            'text-info': card[0] === 'total',
+            'text-success': card[0] === 'published',
+            'text-danger': card[0] === 'hidden',
+            'text-primary': card[0] === 'unanswered',
+          }">{{ store.summary[card[0]] }}</strong>
+      </div>
+    </div>
+    <p class="mb-6 text-xs leading-5 text-text-light">
+      Thống kê theo bộ lọc hiện tại. Phản hồi đã ẩn vẫn được tính là đã trả lời.
+    </p>
+
+    <div v-if="store.message" role="status"
+      class="mb-5 flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
+      <Icon icon="solar:check-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <span>{{ store.message }}</span>
+    </div>
+    <div v-if="store.listError" role="alert"
+      class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+      <Icon icon="solar:danger-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <span>{{ store.listError }}</span>
+    </div>
+
+    <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <div class="mb-5 flex flex-wrap gap-3">
+        <label class="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <span class="sr-only">Tìm đánh giá</span>
+          <Icon icon="solar:magnifer-bold" class="shrink-0 text-text-light" />
+          <input v-model.trim="store.filters.search" type="search" maxlength="255"
+            class="w-full bg-transparent text-sm outline-none" aria-label="Tìm đánh giá"
+            placeholder="Nội dung, sản phẩm, tên hoặc email khách" :disabled="store.saving" @input="search" />
+        </label>
+        <label class="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+          <span class="sr-only">Tìm sản phẩm để lọc</span>
+          <Icon icon="solar:magnifer-bold" class="shrink-0 text-text-light" />
+          <input v-model="productSearch" type="search" maxlength="255"
+            class="w-full bg-transparent text-sm outline-none" aria-label="Tìm sản phẩm để lọc"
+            placeholder="Nhập tên sản phẩm để lọc..." :disabled="store.saving" @input="searchProducts" />
+        </label>
+        <label class="contents">
+          <span class="sr-only">Sản phẩm</span>
+          <select v-model="store.filters.product_id"
+            class="filter-select min-w-0 flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none sm:max-w-[260px]"
+            aria-label="Sản phẩm" :disabled="store.saving || store.loadingProducts" @change="productChanged">
+            <option value="">Tất cả sản phẩm</option>
+            <option v-for="product in productOptions" :key="product.id" :value="product.id">
+              {{ product.product_name }}
+            </option>
+          </select>
+        </label>
+        <label class="contents">
+          <span class="sr-only">Số sao</span>
+          <select v-model="store.filters.rating"
+            class="filter-select flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none"
+            aria-label="Số sao" :disabled="store.saving" @change="filterChanged">
+            <option value="">Tất cả số sao</option>
+            <option v-for="star in 5" :key="star" :value="star">{{ star }} sao</option>
+          </select>
+        </label>
+        <label class="contents">
+          <span class="sr-only">Trạng thái</span>
+          <select v-model="store.filters.status"
+            class="filter-select flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none"
+            aria-label="Trạng thái" :disabled="store.saving" @change="filterChanged">
+            <option value="">Tất cả trạng thái</option>
+            <option value="published">Công khai</option>
+            <option value="hidden">Đã ẩn</option>
+            <option value="pending">Chờ duyệt</option>
+          </select>
+        </label>
+        <label class="contents">
+          <span class="sr-only">Phản hồi của cửa hàng</span>
+          <select v-model="store.filters.reply_status"
+            class="filter-select flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none"
+            aria-label="Phản hồi của cửa hàng" :disabled="store.saving" @change="filterChanged">
+            <option value="">Tất cả phản hồi</option>
+            <option value="unanswered">Chưa trả lời</option>
+            <option value="answered">Đã trả lời</option>
+          </select>
+        </label>
+        <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+          :disabled="store.saving" @click="resetFilters">
+          <Icon icon="solar:restart-bold" />
+          Xóa lọc
+        </button>
+      </div>
+      <p v-if="store.productError" role="alert"
+        class="mb-4 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+        {{ store.productError }}
+      </p>
+      <p class="mb-5 text-xs text-text-light">Tối đa 20 kết quả gợi ý sản phẩm; nhập tên để tìm thêm.</p>
+
+      <div v-if="store.loading" class="py-10 text-center text-text-light" role="status">
+        <Icon icon="solar:refresh-bold" class="mx-auto mb-2 animate-spin text-3xl" />
+        <p class="text-sm">Đang tải đánh giá...</p>
+      </div>
+      <div v-else class="overflow-x-auto">
+        <table class="w-full min-w-[1050px]">
+          <thead class="bg-bg">
+            <tr>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Sản phẩm / Đơn mua</th>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Người đánh giá</th>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Nội dung</th>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Trạng thái</th>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Phản hồi</th>
+              <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Thao tác</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="row in store.reviews" :key="row.id" class="border-b border-border hover:bg-primary/5">
+              <td class="p-3 text-sm">
+                <div class="flex items-center gap-3">
+                  <span class="grid size-12 shrink-0 place-items-center rounded-xl border border-border bg-bg">
+                    <Icon icon="solar:chat-round-line-bold-duotone" class="text-2xl text-primary" />
+                  </span>
+                  <div class="min-w-0 max-w-[240px]">
+                    <strong class="block text-sm font-semibold">{{ row.product?.name || 'Sản phẩm không còn tồn tại' }}</strong>
+                    <p class="mt-1 text-xs text-text-light">{{ packageLabel(row.purchase) }}</p>
+                    <p class="mt-2 font-mono text-xs">{{ row.order?.code || 'Đánh giá cũ chưa liên kết đơn' }}</p>
+                  </div>
+                </div>
+              </td>
+              <td class="p-3 text-sm">
+                <p class="font-semibold">{{ row.author?.name || 'Tài khoản không còn tồn tại' }}</p>
+                <p class="mt-1 text-xs text-text-light">{{ row.author?.email }}</p>
+                <p class="mt-2 text-xs text-text-light">{{ date(row.created_at) }}</p>
+              </td>
+              <td class="max-w-xs p-3 text-sm">
+                <p class="flex items-center gap-1 font-mono font-semibold text-amber-600">
+                  {{ row.rating ?? '—' }} / 5 <Icon icon="solar:star-bold" aria-hidden="true" />
+                </p>
+                <p class="mt-2 line-clamp-3 whitespace-pre-line break-words">{{ row.content }}</p>
+              </td>
+              <td class="p-3 text-sm">
+                <span class="whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium" :class="statusClass(row.status)">
+                  {{ statusLabel(row.status) }}
+                </span>
+              </td>
+              <td class="p-3 text-sm">
+                <span>{{ row.has_shop_reply ? 'Đã trả lời' : 'Chưa trả lời' }}</span>
+                <p v-if="row.shop_reply" class="mt-2 text-xs text-text-light">{{ statusLabel(row.shop_reply.status) }}</p>
+              </td>
+              <td class="p-3">
+                <button type="button" class="btn-outline-icon cursor-pointer disabled:cursor-not-allowed"
+                  title="Xem chi tiết đánh giá" aria-label="Xem chi tiết đánh giá"
+                  :disabled="store.saving" @click="store.openDetail(row)">
+                  <Icon icon="solar:eye-bold" />
+                </button>
+              </td>
+            </tr>
+            <tr v-if="!store.reviews.length">
+              <td colspan="6" class="p-8 text-center text-sm text-text-light">Không có đánh giá phù hợp.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="mt-5 flex flex-col items-center justify-between gap-4 sm:flex-row">
+        <span class="text-sm text-text-light">
+          Hiển thị {{ store.reviews.length }} / {{ store.meta.total }} đánh giá
+        </span>
+        <nav class="flex flex-wrap justify-center gap-2" aria-label="Phân trang đánh giá">
+          <button type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed" aria-label="Trang trước"
+            :disabled="store.loading || store.saving || store.meta.current_page <= 1"
+            @click="pageChanged(store.meta.current_page - 1)">
+            <Icon icon="solar:arrow-left-bold" />
+          </button>
+          <button v-for="page in pages" :key="page" type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed"
+            :class="{ active: page === store.meta.current_page }" :aria-current="page === store.meta.current_page ? 'page' : undefined"
+            :disabled="store.loading || store.saving" @click="pageChanged(page)">
+            {{ page }}
+          </button>
+          <button type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed" aria-label="Trang sau"
+            :disabled="store.loading || store.saving || store.meta.current_page >= store.meta.last_page"
+            @click="pageChanged(store.meta.current_page + 1)">
+            <Icon icon="solar:arrow-right-bold" />
+          </button>
+        </nav>
+      </div>
+    </section>
+
+    <Teleport to="body">
+      <dialog ref="dialog" aria-labelledby="review-title"
+        class="fixed inset-0 m-auto max-h-[92dvh] w-[calc(100%-2rem)] max-w-5xl overflow-y-auto rounded-2xl border-0 bg-surface p-0 text-text shadow-2xl backdrop:bg-black/50"
+        @cancel.prevent="closeDetail">
+        <header class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface p-5 sm:p-6">
+          <div>
+            <h2 id="review-title" class="text-xl font-bold">Chi tiết đánh giá #{{ store.detailId }}</h2>
+            <p class="mt-1 text-sm text-text-light">Xem nhận xét, duyệt hiển thị và phản hồi khách hàng.</p>
+          </div>
+          <button type="button" aria-label="Đóng chi tiết" class="btn-outline-icon cursor-pointer disabled:cursor-not-allowed"
+            :disabled="store.saving" @click="closeDetail">
+            <Icon icon="solar:close-circle-bold" />
+          </button>
         </header>
 
-        <div class="mb-2 grid grid-cols-2 gap-3 lg:grid-cols-5">
-            <div v-for="card in [
-                ['total', 'Tổng đánh giá'], ['published', 'Công khai'], ['hidden', 'Đã ẩn'],
-                ['pending', 'Chờ duyệt'], ['unanswered', 'Chưa trả lời'],
-            ]" :key="card[0]" class="rounded-2xl border border-border bg-surface p-4">
-                <div class="text-xs text-text-light">{{ card[1] }}</div>
-                <strong class="mt-1 block text-2xl">{{ store.summary[card[0]] }}</strong>
+        <div class="space-y-6 p-5 sm:p-6">
+          <div v-if="store.loadingDetail" role="status" class="py-10 text-center text-text-light">
+            <Icon icon="solar:refresh-bold" class="mx-auto mb-2 animate-spin text-3xl" />
+            <p class="text-sm">Đang tải chi tiết...</p>
+          </div>
+          <div v-else-if="store.detailError" role="alert"
+            class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+            {{ store.detailError }}
+            <button type="button" class="ml-3 cursor-pointer font-semibold underline disabled:cursor-not-allowed" @click="reloadDetail">
+              Thử lại
+            </button>
+          </div>
+          <template v-else-if="review">
+            <div v-if="store.message" role="status"
+              class="flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700">
+              <Icon icon="solar:check-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+              <span>{{ store.message }}</span>
             </div>
-        </div>
-        <p class="mb-5 text-xs text-text-light">Thống kê theo bộ lọc hiện tại. Phản hồi đã ẩn vẫn được tính là đã trả
-            lời.</p>
+            <div v-if="store.actionError" role="alert"
+              class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+              {{ store.actionError }}
+              <button type="button" class="ml-2 cursor-pointer font-semibold underline disabled:cursor-not-allowed"
+                :disabled="store.saving" @click="reloadDetail">Tải lại chi tiết</button>
+            </div>
 
-        <p v-if="store.message" role="status" class="mb-4 rounded-xl bg-green-50 p-4 text-sm text-green-700">{{
-            store.message }}</p>
-        <p v-if="store.listError" role="alert" class="mb-4 rounded-xl bg-red-50 p-4 text-sm text-red-600">{{
-            store.listError }}</p>
-
-        <section class="rounded-2xl border border-border bg-surface p-5">
-            <div class="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                <label class="block text-xs font-semibold">Tìm đánh giá
-                    <input v-model.trim="store.filters.search" maxlength="255" class="form-control mt-1 w-full"
-                        placeholder="Nội dung, sản phẩm, tên hoặc email khách" :disabled="store.saving"
-                        @input="search" />
-                </label>
-                <label class="block text-xs font-semibold">Tìm sản phẩm để lọc
-                    <input v-model="productSearch" maxlength="255" class="form-control mt-1 w-full"
-                        placeholder="Nhập tên sản phẩm..." :disabled="store.saving" @input="searchProducts" />
-                </label>
-                <label class="block text-xs font-semibold">Sản phẩm
-                    <select v-model="store.filters.product_id" class="form-control mt-1 w-full"
-                        :disabled="store.saving || store.loadingProducts" @change="productChanged">
-                        <option value="">Tất cả sản phẩm</option>
-                        <option v-for="product in productOptions" :key="product.id" :value="product.id">{{
-                            product.product_name }}</option>
-                    </select>
-                </label>
-                <label class="block text-xs font-semibold">Số sao
-                    <select v-model="store.filters.rating" class="form-control mt-1 w-full" :disabled="store.saving"
-                        @change="filterChanged">
-                        <option value="">Tất cả số sao</option>
-                        <option v-for="star in 5" :key="star" :value="star">{{ star }} sao</option>
-                    </select>
-                </label>
-                <label class="block text-xs font-semibold">Trạng thái
-                    <select v-model="store.filters.status" class="form-control mt-1 w-full" :disabled="store.saving"
-                        @change="filterChanged">
-                        <option value="">Tất cả trạng thái</option>
-                        <option value="published">Công khai</option>
-                        <option value="hidden">Đã ẩn</option>
-                        <option value="pending">Chờ duyệt</option>
-                    </select>
-                </label>
-                <label class="block text-xs font-semibold">Phản hồi của cửa hàng
-                    <select v-model="store.filters.reply_status" class="form-control mt-1 w-full"
-                        :disabled="store.saving" @change="filterChanged">
-                        <option value="">Tất cả</option>
-                        <option value="unanswered">Chưa trả lời</option>
-                        <option value="answered">Đã trả lời</option>
-                    </select>
-                </label>
-            </div>
-            <p v-if="store.productError" role="alert" class="mb-3 text-sm text-red-600">{{ store.productError }}</p>
-            <div class="mb-4 flex items-center justify-between gap-3">
-                <p class="text-xs text-text-light">Tối đa 20 kết quả gợi ý sản phẩm; nhập tên để tìm thêm.</p>
-                <button type="button" class="btn-outline-sm" :disabled="store.saving" @click="resetFilters">Xóa
-                    lọc</button>
-            </div>
-            <div v-if="store.loading" class="py-12 text-center text-text-light" role="status">
-                <Icon icon="solar:refresh-bold" class="mx-auto mb-3 animate-spin text-3xl" />Đang tải đánh giá...
-            </div>
-            <div v-else class="overflow-x-auto">
-                <table class="w-full min-w-[960px] text-sm">
-                    <thead>
-                        <tr class="border-b border-border text-left text-xs text-text-light">
-                            <th class="p-3">Sản phẩm / Đơn mua</th>
-                            <th class="p-3">Người đánh giá</th>
-                            <th class="p-3">Nội dung</th>
-                            <th class="p-3">Trạng thái</th>
-                            <th class="p-3">Phản hồi</th>
-                            <th class="p-3">Thao tác</th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <tr v-for="row in store.reviews" :key="row.id" class="border-b border-border align-top">
-                            <td class="p-3"><strong>{{ row.product?.name || 'Sản phẩm không còn tồn tại' }}</strong>
-                                <p class="mt-1 text-xs text-text-light">{{ packageLabel(row.purchase) }}</p>
-                                <p class="mt-2 text-xs">{{ row.order?.code || 'Đánh giá cũ chưa liên kết đơn' }}</p>
-                            </td>
-                            <td class="p-3">
-                                <p>{{ row.author?.name || 'Tài khoản không còn tồn tại' }}</p>
-                                <p class="mt-1 text-xs text-text-light">{{ row.author?.email }}</p>
-                                <p class="mt-2 text-xs text-text-light">{{ date(row.created_at) }}</p>
-                            </td>
-                            <td class="max-w-xs p-3">
-                                <p class="font-semibold text-amber-600">{{ row.rating ?? '—' }} / 5 ★</p>
-                                <p class="mt-2 line-clamp-3 whitespace-pre-line break-words">{{ row.content }}</p>
-                            </td>
-                            <td class="p-3"><span class="whitespace-nowrap rounded-full px-2.5 py-1 text-xs"
-                                    :class="statusClass(row.status)">{{ statusLabel(row.status) }}</span></td>
-                            <td class="p-3 text-xs"><span>{{ row.has_shop_reply ? 'Đã trả lời' : 'Chưa trả lời'
-                            }}</span>
-                                <p v-if="row.shop_reply" class="mt-2 text-text-light">{{
-                                    statusLabel(row.shop_reply.status) }}</p>
-                            </td>
-                            <td class="p-3"><button type="button"
-                                    class="font-semibold text-primary hover:underline disabled:opacity-50"
-                                    :disabled="store.saving" @click="store.openDetail(row)">Xem chi tiết</button></td>
-                        </tr>
-                        <tr v-if="!store.reviews.length">
-                            <td colspan="6" class="p-10 text-center text-text-light">Không có đánh giá phù hợp.</td>
-                        </tr>
-                    </tbody>
-                </table>
-            </div>
-            <div class="mt-5 flex flex-wrap items-center justify-between gap-3">
-                <span class="text-xs text-text-light">{{ store.meta.total }} đánh giá · Trang {{ store.meta.current_page
-                }} / {{ store.meta.last_page }}</span>
-                <nav class="flex gap-2" aria-label="Phân trang đánh giá">
-                    <button class="page-btn" :disabled="store.loading || store.saving || store.meta.current_page <= 1"
-                        @click="pageChanged(store.meta.current_page - 1)">‹</button>
-                    <button v-for="page in pages" :key="page" class="page-btn"
-                        :class="{ active: page === store.meta.current_page }" :disabled="store.loading || store.saving"
-                        @click="pageChanged(page)">{{ page }}</button>
-                    <button class="page-btn"
-                        :disabled="store.loading || store.saving || store.meta.current_page >= store.meta.last_page"
-                        @click="pageChanged(store.meta.current_page + 1)">›</button>
-                </nav>
-            </div>
-        </section>
-
-        <dialog ref="dialog" aria-labelledby="review-title"
-            class="m-auto max-h-[90vh] w-[min(760px,94vw)] overflow-y-auto rounded-2xl bg-surface p-0 text-text shadow-xl backdrop:bg-black/50"
-            @cancel.prevent="closeDetail">
-            <header
-                class="sticky top-0 z-10 flex items-center justify-between gap-4 border-b border-border bg-surface p-5">
-                <h2 id="review-title" class="text-lg font-bold">Chi tiết đánh giá #{{ store.detailId }}</h2>
-                <button type="button" aria-label="Đóng chi tiết" class="btn-outline-icon" :disabled="store.saving"
-                    @click="closeDetail">
-                    <Icon icon="solar:close-circle-bold" />
-                </button>
-            </header>
-            <div class="space-y-5 p-5">
-                <p v-if="store.loadingDetail" role="status" class="py-10 text-center">Đang tải chi tiết...</p>
-                <div v-else-if="store.detailError" role="alert" class="rounded-xl bg-red-50 p-4 text-sm text-red-600">
-                    {{ store.detailError }}<button type="button" class="ml-3 underline" @click="reloadDetail">Thử
-                        lại</button>
+            <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+              <h3 class="mb-4 text-lg font-bold">Thông tin đánh giá</h3>
+              <div class="flex items-start gap-3">
+                <span class="grid size-12 shrink-0 place-items-center rounded-xl border border-border bg-bg">
+                  <Icon icon="solar:chat-round-line-bold-duotone" class="text-2xl text-primary" />
+                </span>
+                <div class="min-w-0">
+                  <RouterLink v-if="review.product" :to="{ name: 'client-product-detail', params: { id: review.product.id } }"
+                    target="_blank" rel="noopener noreferrer" class="cursor-pointer text-sm font-semibold text-primary hover:underline">
+                    {{ review.product.name }}
+                  </RouterLink>
+                  <strong v-else class="text-sm font-semibold">Sản phẩm không còn tồn tại</strong>
+                  <p class="mt-1 text-xs text-text-light">{{ packageLabel(review.purchase) }}</p>
+                  <p class="mt-2 text-sm">{{ review.author?.name || 'Tài khoản không còn tồn tại' }} · {{ review.author?.email }}</p>
+                  <p class="mt-1 text-xs text-text-light">
+                    {{ date(review.created_at) }} · {{ review.order?.code || 'Chưa liên kết đơn hàng' }}
+                  </p>
                 </div>
-                <template v-else-if="review">
-                    <p v-if="store.message" role="status" class="rounded-xl bg-green-50 p-3 text-sm text-green-700">{{
-                        store.message }}</p>
-                    <div v-if="store.actionError" role="alert" class="rounded-xl bg-red-50 p-3 text-sm text-red-600">
-                        {{ store.actionError }}
-                        <button type="button" class="ml-2 underline" :disabled="store.saving" @click="reloadDetail">Tải
-                            lại chi tiết</button>
-                    </div>
-                    <div>
-                        <RouterLink v-if="review.product"
-                            :to="{ name: 'client-product-detail', params: { id: review.product.id } }" target="_blank"
-                            class="font-bold text-primary">{{ review.product.name }}</RouterLink>
-                        <strong v-else>Sản phẩm không còn tồn tại</strong>
-                        <p class="mt-1 text-xs text-text-light">{{ packageLabel(review.purchase) }}</p>
-                        <p class="mt-2 text-sm">{{ review.author?.name || 'Tài khoản không còn tồn tại' }} · {{
-                            review.author?.email }}</p>
-                        <p class="mt-1 text-xs text-text-light">{{ date(review.created_at) }} · {{ review.order?.code ||
-                            'Chưa liên kết đơn hàng' }}</p>
-                    </div>
-                    <div class="rounded-xl border border-border p-4">
-                        <div class="flex items-center justify-between gap-3">
-                            <strong class="text-amber-600">{{ review.rating ?? '—' }} / 5 ★</strong>
-                            <span class="rounded-full px-3 py-1 text-xs" :class="statusClass(review.status)">{{
-                                statusLabel(review.status) }}</span>
-                        </div>
-                        <p class="mt-3 whitespace-pre-line break-words text-sm leading-6">{{ review.content }}</p>
-                    </div>
-                    <div v-if="canModerate" class="flex flex-wrap gap-3">
-                        <button v-if="review.status !== 'published'" type="button" class="btn-primary"
-                            :disabled="locked" @click="changeStatus('published')">Công khai đánh giá</button>
-                        <button v-if="review.status !== 'hidden'" type="button" class="btn-outline text-red-600"
-                            :disabled="locked" @click="changeStatus('hidden')">Ẩn đánh giá</button>
-                    </div>
+              </div>
+            </section>
 
-                    <section class="space-y-3 border-t border-border pt-5">
-                        <h3 class="font-bold">Phản hồi của cửa hàng</h3>
-                        <p v-if="review.status !== 'published'"
-                            class="rounded-lg bg-amber-50 p-3 text-xs text-amber-800">Đánh giá đang {{
-                                statusLabel(review.status).toLowerCase() }}. Khách chưa xem được đánh giá và phản hồi này
-                            trên trang sản phẩm.</p>
-                        <div v-if="review.shop_reply" class="rounded-xl border border-border p-4">
-                            <div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-                                <strong>{{ review.shop_reply.author?.name || 'Cửa hàng' }}</strong>
-                                <span class="rounded-full px-2 py-1" :class="statusClass(review.shop_reply.status)">{{
-                                    statusLabel(review.shop_reply.status) }}</span>
-                            </div>
-                            <p class="mt-2 whitespace-pre-line break-words text-sm leading-6">{{
-                                review.shop_reply.content }}</p>
-                            <p class="mt-2 text-xs text-text-light">Tạo: {{ date(review.shop_reply.created_at) }} · Cập
-                                nhật: {{ date(review.shop_reply.updated_at) }}</p>
-                        </div>
-                        <p v-else-if="review.has_shop_reply" class="text-sm text-text-light">Phản hồi đã bị xóa mềm.
-                            Không tạo thêm phản hồi trùng.</p>
-                        <p v-else class="text-sm text-text-light">Cửa hàng chưa trả lời đánh giá này.</p>
+            <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <strong class="flex items-center gap-1 font-mono text-sm text-amber-600">
+                  {{ review.rating ?? '—' }} / 5 <Icon icon="solar:star-bold" aria-hidden="true" />
+                </strong>
+                <span class="rounded-full px-3 py-1 text-xs font-medium" :class="statusClass(review.status)">
+                  {{ statusLabel(review.status) }}
+                </span>
+              </div>
+              <p class="mt-3 whitespace-pre-line break-words text-sm leading-6">{{ review.content }}</p>
+              <div v-if="canModerate" class="mt-5 flex flex-wrap gap-3 border-t border-border pt-4">
+                <button v-if="review.status !== 'published'" type="button" class="btn-primary cursor-pointer disabled:cursor-not-allowed"
+                  :disabled="locked" @click="changeStatus('published')">
+                  <Icon icon="solar:check-circle-bold" /> Công khai đánh giá
+                </button>
+                <button v-if="review.status !== 'hidden'" type="button" class="btn-outline cursor-pointer text-danger disabled:cursor-not-allowed"
+                  :disabled="locked" @click="changeStatus('hidden')">
+                  <Icon icon="solar:eye-closed-bold" /> Ẩn đánh giá
+                </button>
+              </div>
+            </section>
 
-                        <form v-if="canEditReply" class="space-y-3" @submit.prevent="saveReply">
-                            <label for="shop-reply-content" class="block text-sm font-semibold">{{ review.shop_reply ?
-                                'Sửa nội dung phản hồi' : 'Nội dung phản hồi' }}</label>
-                            <textarea id="shop-reply-content" v-model="replyDraft" rows="5" maxlength="1000" required
-                                class="form-control w-full" :disabled="locked"
-                                placeholder="Nhập phản hồi của cửa hàng..."></textarea>
-                            <div class="flex flex-wrap items-center justify-between gap-3">
-                                <span class="text-xs text-text-light">{{ [...replyDraft].length }} / 1000 ký tự</span>
-                                <button type="submit" class="btn-primary disabled:opacity-50"
-                                    :disabled="locked || !replyDraft.trim() || (!!review.shop_reply && !dirty)">
-                                    {{ store.saving ? 'Đang lưu...' : review.shop_reply ?
-                                        'Lưu nội dung' : 'Gửi phảnhồi' }}
-                                </button>
-                            </div>
-                            <p v-if="review.shop_reply?.status === 'hidden'" class="text-xs text-text-light">Lưu nội
-                                dung vẫn giữ phản hồi ở trạng thái ẩn.</p>
-                        </form>
-                        <div v-if="canReply && review.shop_reply" class="flex gap-3">
-                            <button v-if="review.shop_reply.status !== 'hidden'" type="button"
-                                class="btn-outline text-red-600" :disabled="locked"
-                                @click="changeReplyStatus('hidden')">Ẩn phản hồi</button>
-                            <button v-if="review.shop_reply.status !== 'published'" type="button" class="btn-outline"
-                                :disabled="locked" @click="changeReplyStatus('published')">Hiện phản hồi</button>
-                        </div>
-                    </section>
+            <section class="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+              <h3 class="text-lg font-bold">Phản hồi của cửa hàng</h3>
+              <p v-if="review.status !== 'published'"
+                class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                Đánh giá đang {{ statusLabel(review.status).toLowerCase() }}. Khách chưa xem được đánh giá và phản hồi này trên trang sản phẩm.
+              </p>
+              <div v-if="review.shop_reply" class="rounded-xl border border-border bg-bg p-4">
+                <div class="flex flex-wrap items-center justify-between gap-2">
+                  <strong class="text-sm font-semibold">{{ review.shop_reply.author?.name || 'Cửa hàng' }}</strong>
+                  <span class="rounded-full px-2 py-1 text-xs font-medium" :class="statusClass(review.shop_reply.status)">
+                    {{ statusLabel(review.shop_reply.status) }}
+                  </span>
+                </div>
+                <p class="mt-2 whitespace-pre-line break-words text-sm leading-6">{{ review.shop_reply.content }}</p>
+                <p class="mt-2 text-xs text-text-light">
+                  Tạo: {{ date(review.shop_reply.created_at) }} · Cập nhật: {{ date(review.shop_reply.updated_at) }}
+                </p>
+              </div>
+              <p v-else-if="review.has_shop_reply" class="text-sm text-text-light">
+                Phản hồi đã bị xóa mềm. Không tạo thêm phản hồi trùng.
+              </p>
+              <p v-else class="text-sm text-text-light">Cửa hàng chưa trả lời đánh giá này.</p>
 
-                    <section v-if="review.other_replies?.length" class="space-y-3 border-t border-border pt-4">
-                        <h3 class="text-sm font-semibold">Phản hồi khác từ dữ liệu trước đây</h3>
-                        <div v-for="reply in review.other_replies" :key="reply.id"
-                            class="rounded-lg border border-border p-3 text-sm">
-                            <strong>{{ reply.author?.name || 'Người dùng' }}</strong> · {{ statusLabel(reply.status) }}
-                            <p class="mt-2 whitespace-pre-line break-words">{{ reply.content }}</p>
-                        </div>
-                    </section>
-                </template>
-            </div>
-            <footer class="flex justify-end border-t border-border p-5"><button type="button" class="btn-outline"
-                    :disabled="store.saving" @click="closeDetail">Đóng</button></footer>
-        </dialog>
-    </div>
+              <form v-if="canEditReply" class="space-y-4" @submit.prevent="saveReply">
+                <div class="form-group">
+                  <label for="shop-reply-content" class="form-label">
+                    {{ review.shop_reply ? 'Sửa nội dung phản hồi' : 'Nội dung phản hồi' }}
+                  </label>
+                  <textarea id="shop-reply-content" v-model="replyDraft" rows="5" maxlength="1000" required
+                    class="form-control" :disabled="locked" placeholder="Nhập phản hồi của cửa hàng..."></textarea>
+                </div>
+                <div class="flex flex-col justify-between gap-3 border-t border-border pt-4 sm:flex-row sm:items-center">
+                  <span class="text-xs text-text-light">{{ [...replyDraft].length }} / 1000 ký tự</span>
+                  <button type="submit" class="btn-primary cursor-pointer disabled:cursor-not-allowed disabled:opacity-60"
+                    :disabled="locked || !replyDraft.trim() || (!!review.shop_reply && !dirty)">
+                    <Icon :icon="store.saving ? 'solar:refresh-bold' : 'solar:check-circle-bold'"
+                      :class="store.saving ? 'animate-spin' : ''" />
+                    {{ store.saving ? 'Đang lưu...' : review.shop_reply ? 'Lưu nội dung' : 'Gửi phản hồi' }}
+                  </button>
+                </div>
+                <p v-if="review.shop_reply?.status === 'hidden'" class="text-xs text-text-light">
+                  Lưu nội dung vẫn giữ phản hồi ở trạng thái ẩn.
+                </p>
+              </form>
+              <div v-if="canReply && review.shop_reply" class="flex flex-wrap gap-3">
+                <button v-if="review.shop_reply.status !== 'hidden'" type="button"
+                  class="btn-outline cursor-pointer text-danger disabled:cursor-not-allowed" :disabled="locked" @click="changeReplyStatus('hidden')">
+                  <Icon icon="solar:eye-closed-bold" /> Ẩn phản hồi
+                </button>
+                <button v-if="review.shop_reply.status !== 'published'" type="button"
+                  class="btn-outline cursor-pointer disabled:cursor-not-allowed" :disabled="locked" @click="changeReplyStatus('published')">
+                  <Icon icon="solar:eye-bold" /> Hiện phản hồi
+                </button>
+              </div>
+            </section>
+
+            <section v-if="review.other_replies?.length" class="space-y-4 rounded-2xl border border-border bg-surface p-5 shadow-sm">
+              <h3 class="text-lg font-bold">Phản hồi khác từ dữ liệu trước đây</h3>
+              <div v-for="reply in review.other_replies" :key="reply.id" class="rounded-xl border border-border p-4 text-sm">
+                <strong class="font-semibold">{{ reply.author?.name || 'Người dùng' }}</strong> · {{ statusLabel(reply.status) }}
+                <p class="mt-2 whitespace-pre-line break-words">{{ reply.content }}</p>
+              </div>
+            </section>
+          </template>
+        </div>
+        <footer class="flex flex-col justify-end gap-3 border-t border-border bg-surface p-5 sm:flex-row sm:p-6">
+          <button type="button" class="btn-outline cursor-pointer disabled:cursor-not-allowed"
+            :disabled="store.saving" @click="closeDetail">Đóng</button>
+        </footer>
+      </dialog>
+    </Teleport>
+  </div>
 </template>

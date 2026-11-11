@@ -222,121 +222,172 @@ async function action(row, retry = false) {
         if (!operation.signal.aborted) busyIds.value.delete(row.id);
     }
 }
+
+// Chỉ tính các nút số trang hiển thị, dùng lại load() hiện có.
+const visiblePages = computed(() => {
+    const start = Math.max(1, meta.value.current_page - 2);
+    const end = Math.min(meta.value.last_page, meta.value.current_page + 2);
+    return Array.from(
+        { length: Math.max(0, end - start + 1) },
+        (_, index) => start + index,
+    );
+});
 </script>
 <template>
-    <section class="rounded-2xl border border-border bg-surface shadow-sm">
-        <header class="flex flex-wrap items-center justify-between gap-3 border-b border-border p-5">
-            <h2 class="font-bold text-text">Tệp đã xuất</h2>
-            <button v-if="canView" type="button" @click="load(meta.current_page)" :disabled="loading"
-                class="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-2 text-sm text-text-sec disabled:opacity-40">
-                <Icon icon="mdi:refresh" />Làm mới
-            </button>
-        </header>
-        <div v-if="!canView" class="p-8 text-center text-text-light">
-            Bạn không có quyền xem tệp đã xuất.
+  <div>
+    <header class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+      <div>
+        <h1 class="text-2xl font-bold">Tệp đã xuất</h1>
+        <p class="text-sm text-text-light">
+          {{ Number(meta.total).toLocaleString("vi-VN") }} tệp phù hợp bộ lọc
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-3">
+        <button v-if="canView" type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+          :disabled="loading" @click="load(meta.current_page)">
+          <Icon icon="solar:refresh-bold" :class="loading ? 'animate-spin' : ''" />
+          Tải lại
+        </button>
+      </div>
+    </header>
+
+    <div v-if="!canView" role="alert"
+      class="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+      Bạn không có quyền xem tệp đã xuất.
+    </div>
+    <template v-else>
+      <div v-if="error" role="alert"
+        class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600">
+        <Icon icon="solar:danger-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+        <span>{{ error }}</span>
+      </div>
+
+      <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+        <form @submit.prevent="applyFilters" class="mb-5 flex flex-wrap gap-3">
+          <label class="flex min-w-[220px] flex-1 items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2">
+            <span class="sr-only">Tìm tên file</span>
+            <Icon icon="solar:magnifer-bold" class="shrink-0 text-text-light" />
+            <input v-model="filters.search" type="search" maxlength="150" placeholder="Tìm tên file"
+              aria-label="Tìm tên file" class="w-full bg-transparent text-sm outline-none" />
+          </label>
+          <select v-model="filters.report_type" aria-label="Loại báo cáo"
+            class="filter-select min-w-0 max-w-full flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none">
+            <option value="">Tất cả báo cáo</option>
+            <option v-for="item in types" :key="item.type" :value="item.type">{{ item.label }}</option>
+          </select>
+          <select v-model="filters.status" aria-label="Trạng thái xuất file"
+            class="filter-select flex-1 cursor-pointer disabled:cursor-not-allowed sm:flex-none">
+            <option value="">Tất cả trạng thái</option>
+            <option v-for="(item, key) in status" :key="key" :value="key">{{ item.label }}</option>
+          </select>
+          <button type="submit" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed">
+            <Icon icon="solar:filter-bold" />
+            Lọc
+          </button>
+        </form>
+
+        <div v-if="loading && !rows.length" role="status" class="py-10 text-center text-text-light">
+          <Icon icon="solar:refresh-bold" class="mx-auto mb-2 animate-spin text-3xl" />
+          <p class="text-sm">Đang tải tệp đã xuất...</p>
         </div>
-        <template v-else>
-            <form @submit.prevent="applyFilters" class="flex flex-wrap items-center gap-3 border-b border-border p-5">
-                <select v-model="filters.report_type" aria-label="Loại báo cáo"
-                    class="max-w-full rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text">
-                    <option value="">Tất cả báo cáo</option>
-                    <option v-for="item in types" :key="item.type" :value="item.type">
-                        {{ item.label }}
-                    </option>
-                </select>
-                <select v-model="filters.status" aria-label="Trạng thái xuất file"
-                    class="rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text">
-                    <option value="">Tất cả trạng thái</option>
-                    <option v-for="(item, key) in status" :key="key" :value="key">
-                        {{ item.label }}
-                    </option>
-                </select>
-                <input v-model="filters.search" type="search" maxlength="150" placeholder="Tìm tên file"
-                    aria-label="Tìm tên file"
-                    class="min-w-0 flex-1 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-text" />
-                <button type="submit" class="rounded-lg bg-red-500 px-4 py-2 text-sm font-semibold text-white">
-                    Lọc
-                </button>
-            </form>
-            <p v-if="error" role="alert" class="mx-5 mt-4 rounded-lg bg-red-500/10 px-4 py-3 text-sm text-red-500">
-                {{ error }}
-            </p>
-            <p v-if="loading && !rows.length" role="status" class="p-10 text-center text-sm text-text-light">
-                Đang tải...
-            </p>
-            <p v-else-if="!rows.length" class="p-10 text-center text-sm text-text-light">
-                Chưa có tệp xuất.
-            </p>
-            <div v-else class="space-y-6 p-5" :aria-busy="loading">
-                <section v-for="group in groups" :key="group.label">
-                    <h3 class="mb-3 text-sm font-semibold text-text-sec">
-                        {{ group.label }}
-                    </h3>
-                    <div class="space-y-3">
-                        <article v-for="row in group.items" :key="row.id"
-                            class="grid grid-cols-[44px_minmax(0,1fr)] items-center gap-3 rounded-xl border border-border px-4 py-4 sm:flex sm:flex-wrap sm:gap-4">
-                            <span
-                                class="grid size-11 shrink-0 place-items-center rounded-xl bg-emerald-500/10 text-emerald-600">
-                                <Icon icon="mdi:file-excel-outline" class="text-2xl" />
-                            </span>
-                            <div class="min-w-0 flex-1">
-                                <p class="break-words text-sm font-semibold text-text">
-                                    {{ row.file_name || label(row) }}
-                                </p>
-                                <p class="mt-1 text-xs text-text-light">
-                                    <template v-if="row.filters.date_from && row.filters.date_to">{{
-                                        date(row.filters.date_from) }} –
-                                        {{ date(row.filters.date_to) }} ·
-                                    </template>
-                                    {{ time(row.created_at)
-                                    }}<template v-if="row.row_count != null">
-                                        · {{ row.row_count.toLocaleString("vi-VN") }} dòng ·
-                                        {{ size(row.file_size) }}</template>
-                                </p>
-                                <p v-if="row.status === 'failed'" class="mt-1 text-xs text-red-500">
-                                    {{ row.error_message }}
-                                </p>
-                            </div>
-                            <span
-                                class="col-start-2 inline-flex items-center justify-self-start gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold"
-                                :class="(status[row.status] || status.pending).class">
-                                <Icon :icon="(status[row.status] || status.pending).icon"
-                                    :class="{ 'animate-spin': row.status === 'processing' }" />{{ (status[row.status] ||
-                                status.pending).label }}
-                            </span>
-                            <button v-if="row.can_download" type="button" :disabled="busyIds.has(row.id)"
-                                @click="action(row)"
-                                class="col-start-2 inline-flex items-center justify-self-start gap-2 rounded-lg border border-red-500 px-4 py-2 text-sm font-semibold text-red-500 hover:bg-red-500/5 disabled:opacity-40">
-                                <Icon icon="mdi:download-outline" />{{
-                                    busyIds.has(row.id) ? "Đang tải..." : "Tải xuống"
-                                }}
-                            </button>
-                            <button v-else-if="row.can_retry && auth.hasPermission('export.create')" type="button"
-                                :disabled="busyIds.has(row.id)" @click="action(row, true)"
-                                class="col-start-2 justify-self-start rounded-lg border border-border px-4 py-2 text-sm text-text disabled:opacity-40">
-                                {{ busyIds.has(row.id) ? "Đang gửi..." : "Thử lại" }}
-                            </button>
-                        </article>
+        <div v-else class="overflow-x-auto" :aria-busy="loading">
+          <table class="w-full min-w-[1050px]">
+            <thead class="bg-bg">
+              <tr>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Tệp báo cáo</th>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Loại báo cáo</th>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Thời gian tạo</th>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Số dòng / Dung lượng</th>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Trạng thái</th>
+                <th class="p-3 text-left text-xs font-bold uppercase tracking-wide text-text-light">Thao tác</th>
+              </tr>
+            </thead>
+            <tbody>
+              <template v-for="group in groups" :key="group.label">
+                <tr class="border-b border-border bg-bg/50">
+                  <td colspan="6" class="p-3 text-xs font-medium text-text-light">{{ group.label }}</td>
+                </tr>
+                <tr v-for="row in group.items" :key="row.id" class="border-b border-border hover:bg-primary/5">
+                  <td class="p-3 text-sm">
+                    <div class="flex items-center gap-3">
+                      <span class="grid size-12 shrink-0 place-items-center rounded-xl border border-border bg-bg text-success">
+                        <Icon icon="mdi:file-excel-outline" class="text-2xl" />
+                      </span>
+                      <div class="min-w-0 max-w-[280px]">
+                        <p class="break-words text-sm font-semibold">{{ row.file_name || label(row) }}</p>
+                        <p class="mt-1 text-xs text-text-light">
+                          <template v-if="row.filters.date_from && row.filters.date_to">
+                            {{ date(row.filters.date_from) }} – {{ date(row.filters.date_to) }}
+                          </template>
+                        </p>
+                        <p v-if="row.status === 'failed'" class="mt-1 break-words text-xs text-red-600">
+                          {{ row.error_message }}
+                        </p>
+                      </div>
                     </div>
-                </section>
-            </div>
-            <footer
-                class="flex items-center justify-between gap-3 border-t border-border px-5 py-4 text-xs text-text-light">
-                <span>{{ Number(meta.total).toLocaleString("vi-VN") }} tệp</span>
-                <div class="flex items-center gap-3">
-                    <button type="button" :disabled="loading || meta.current_page <= 1"
-                        @click="load(meta.current_page - 1)"
-                        class="rounded-lg border border-border px-3 py-2 disabled:opacity-30">
-                        Trước
-                    </button>
-                    <span>{{ meta.current_page }} / {{ meta.last_page }}</span>
-                    <button type="button" :disabled="loading || meta.current_page >= meta.last_page"
-                        @click="load(meta.current_page + 1)"
-                        class="rounded-lg border border-border px-3 py-2 disabled:opacity-30">
-                        Sau
-                    </button>
-                </div>
-            </footer>
-        </template>
-    </section>
+                  </td>
+                  <td class="max-w-[220px] p-3 text-sm">{{ label(row) }}</td>
+                  <td class="whitespace-nowrap p-3 text-sm text-text-light">{{ time(row.created_at) }}</td>
+                  <td class="p-3 text-sm">
+                    <template v-if="row.row_count != null">
+                      <p class="font-mono">{{ row.row_count.toLocaleString("vi-VN") }} dòng</p>
+                      <p class="mt-1 font-mono text-xs text-text-light">{{ size(row.file_size) }}</p>
+                    </template>
+                  </td>
+                  <td class="p-3">
+                    <span class="inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1 text-xs font-medium"
+                      :class="(status[row.status] || status.pending).class">
+                      <Icon :icon="(status[row.status] || status.pending).icon"
+                        :class="{ 'animate-spin': row.status === 'processing' }" />
+                      {{ (status[row.status] || status.pending).label }}
+                    </span>
+                  </td>
+                  <td class="p-3">
+                    <div class="flex flex-wrap gap-2">
+                      <button v-if="row.can_download" type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+                        :disabled="busyIds.has(row.id)" @click="action(row)">
+                        <Icon :icon="busyIds.has(row.id) ? 'solar:refresh-bold' : 'mdi:download-outline'"
+                          :class="busyIds.has(row.id) ? 'animate-spin' : ''" />
+                        {{ busyIds.has(row.id) ? "Đang tải..." : "Tải xuống" }}
+                      </button>
+                      <button v-else-if="row.can_retry && auth.hasPermission('export.create')" type="button"
+                        class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
+                        :disabled="busyIds.has(row.id)" @click="action(row, true)">
+                        <Icon icon="solar:refresh-bold" :class="busyIds.has(row.id) ? 'animate-spin' : ''" />
+                        {{ busyIds.has(row.id) ? "Đang gửi..." : "Thử lại" }}
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </template>
+              <tr v-if="!rows.length">
+                <td colspan="6" class="p-8 text-center text-sm text-text-light">Chưa có tệp xuất.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <footer class="mt-5 flex flex-col items-center justify-between gap-4 sm:flex-row">
+          <span class="text-sm text-text-light">
+            Hiển thị {{ rows.length }} / {{ Number(meta.total).toLocaleString("vi-VN") }} tệp
+          </span>
+          <nav class="flex flex-wrap items-center justify-center gap-2" aria-label="Phân trang tệp đã xuất">
+            <button type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed" aria-label="Trang trước"
+              :disabled="loading || meta.current_page <= 1" @click="load(meta.current_page - 1)">
+              <Icon icon="solar:arrow-left-bold" />
+            </button>
+            <button v-for="page in visiblePages" :key="page" type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed"
+              :class="{ active: page === meta.current_page }" :aria-current="page === meta.current_page ? 'page' : undefined"
+              :disabled="loading" @click="load(page)">
+              {{ page }}
+            </button>
+            <button type="button" class="page-btn cursor-pointer disabled:cursor-not-allowed" aria-label="Trang sau"
+              :disabled="loading || meta.current_page >= meta.last_page" @click="load(meta.current_page + 1)">
+              <Icon icon="solar:arrow-right-bold" />
+            </button>
+          </nav>
+        </footer>
+      </section>
+    </template>
+  </div>
 </template>

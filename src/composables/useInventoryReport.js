@@ -100,7 +100,8 @@ export function useInventoryReport() {
       if (seq === generation) loading.value = false;
     }
   }
-  watch(() => [auth.user?.id, canView.value], clear);
+  // So sánh từng giá trị để làm mới auth cùng tài khoản không xóa báo cáo.
+  watch([() => auth.user?.id, () => canView.value], clear);
   onBeforeUnmount(clear);
   return {
     canView,

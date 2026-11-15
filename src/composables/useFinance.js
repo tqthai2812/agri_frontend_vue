@@ -79,7 +79,6 @@ export async function errorText(error) {
     "Không kết nối được máy chủ. Bạn có thể thử lại cùng thao tác."
   );
 }
-
 export function useFinance(permission) {
   const auth = useAuthStore(),
     allowed = computed(
@@ -182,7 +181,8 @@ export function useFinance(permission) {
     pending = null;
     uncertain.value = false;
   }
-  watch(() => [auth.user?.id, allowed.value], clear);
+  // Chỉ xóa dữ liệu khi thực sự đổi tài khoản hoặc đổi quyền truy cập.
+  watch([() => auth.user?.id, () => allowed.value], clear);
   onBeforeUnmount(() => {
     alive = false;
     clear();

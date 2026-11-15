@@ -1,7 +1,7 @@
 @reference "../../../style.css";
 
 :where(.inventory-page, .inventory-panel) .stat-card {
-  @apply rounded-2xl border border-border bg-surface p-4 shadow-sm;
+  @apply rounded-2xl border-l-4 bg-surface p-4 shadow-sm;
 }
 
 :where(.inventory-page, .inventory-panel) .stat-label {
@@ -9,7 +9,7 @@
 }
 
 :where(.inventory-page, .inventory-panel) .stat-value {
-  @apply mt-1 font-mono text-2xl font-bold;
+  @apply font-mono text-2xl font-bold;
 }
 
 :where(.inventory-page, .inventory-panel) .search-box {
@@ -45,17 +45,17 @@
 }
 
 :where(.inventory-page, .inventory-panel) .notice-error {
-  @apply rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700;
+  @apply rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600;
 }
 
 :where(.inventory-page, .inventory-panel) .notice-success {
-  @apply rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-700;
+  @apply rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700;
 }
 
 :where(.inventory-page, .inventory-panel) .notice-warning {
-  @apply rounded-xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900;
+  @apply rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900;
 }
 
 :where(.inventory-page, .inventory-panel) button:disabled {
-  @apply cursor-not-allowed opacity-50;
+  @apply cursor-not-allowed;
 }

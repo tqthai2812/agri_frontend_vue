@@ -1,4 +1,5 @@
 <script setup>
+import { Icon } from "@iconify/vue";
 import { computed, onBeforeUnmount, onMounted, reactive, ref } from "vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import FinanceDialog from "@/components/admin/finance/FinanceDialog.vue";
@@ -262,12 +263,13 @@ onBeforeUnmount(() => {
 
 <template>
     <FinanceDialog title="Điều chỉnh tồn lô" :busy="saving || checking" @close="close">
-        <p v-if="loading" role="status" class="py-6 text-center fin-note">
+        <p v-if="loading" role="status" class="py-10 text-center text-sm text-text-light">
+      <Icon icon="solar:refresh-bold" class="mx-auto mb-2 block animate-spin text-3xl" />
             Đang lấy tồn lô hiện tại…
         </p>
-        <p v-if="error" role="alert" class="fin-error mb-4">{{ error }}</p>
-        <p v-if="status" role="status" class="fin-note mb-4">{{ status }}</p>
-        <div v-if="pending" class="fin-warning mb-4">
+        <p v-if="error" role="alert" class="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 mb-4">{{ error }}</p>
+        <p v-if="status" role="status" class="text-xs leading-5 text-text-light mb-4">{{ status }}</p>
+        <div v-if="pending" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
             <strong>Đang kiểm tra một thao tác đã gửi</strong>
             <p class="mt-1">
                 {{ pending.sku }} · Lô {{ pending.lot_code }} · Thay đổi
@@ -280,17 +282,18 @@ onBeforeUnmount(() => {
                 Giữ nguyên nội dung khi gửi lại. Thao tác được lưu trong phiên trình
                 duyệt để tiếp tục kiểm tra khi tải lại trang.
             </p>
-            <button type="button" class="fin-btn mt-3" :disabled="busy" @click="checkRecorded()">
+            <button type="button" class="mt-3 btn-outline-sm cursor-pointer disabled:cursor-not-allowed" :disabled="busy" @click="checkRecorded()">
                 Kiểm tra kết quả
             </button>
         </div>
-        <button v-if="!context && !loading" type="button" class="fin-btn mb-4" :disabled="busy" @click="loadContext">
+        <button v-if="!context && !loading" type="button" class="mb-4 btn-outline-sm cursor-pointer disabled:cursor-not-allowed" :disabled="busy" @click="loadContext">
+<Icon icon="solar:refresh-bold" aria-hidden="true" />
             Tải lại dữ liệu lô
         </button>
         <form v-if="context" @submit.prevent="save">
             <div class="adjustment-heading mb-4">
                 <strong>{{ context.package.product_name || "Sản phẩm" }}</strong>
-                <p class="fin-note">
+                <p class="text-xs leading-5 text-text-light">
                     {{ context.package.sku }} · {{ context.package.variant_name }} ·
                     {{ context.package.size }} {{ context.package.unit }}
                 </p>
@@ -312,39 +315,39 @@ onBeforeUnmount(() => {
                         {{ quantity(context.stock.reserved) }}</strong>
                 </article>
             </div>
-            <p v-if="context.lot.reserved_quantity > 0" class="fin-warning mb-4">
+            <p v-if="context.lot.reserved_quantity > 0" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
                 Lô này đang giữ {{ quantity(context.lot.reserved_quantity) }} cho đơn hàng.
                 Điều chỉnh giảm không được lấy vào phần hàng này.
             </p>
-            <p v-if="context.stock.reservation_consistent === false" class="fin-warning mb-4">
+            <p v-if="context.stock.reservation_consistent === false" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
                 Dữ liệu giữ lô cần đối chiếu trước khi điều chỉnh.
             </p>
-            <p v-if="!context.lot.eligible" class="fin-note mb-4">
+            <p v-if="!context.lot.eligible" class="text-xs leading-5 text-text-light mb-4">
                 Lô này không được tính vào hàng hợp lệ để bán do hạn dùng hoặc trạng
                 thái lô.
             </p>
-            <p v-if="!context.stock.consistent" class="fin-warning mb-4">
+            <p v-if="!context.stock.consistent" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
                 Tồn vật lý chưa khớp tổng tồn lô. Cần đối chiếu trước khi điều chỉnh.
             </p>
-            <div class="fin-grid">
-                <label>Loại điều chỉnh
-                    <select v-model="form.direction" class="fin-input" aria-label="Loại điều chỉnh"
+            <div class="grid min-w-0 gap-4 sm:grid-cols-2">
+                <label class="form-group"><span class="form-label">Loại điều chỉnh
+                    </span><select v-model="form.direction" class="form-control cursor-pointer disabled:cursor-not-allowed" aria-label="Loại điều chỉnh"
                         :disabled="!!pending || busy">
                         <option value="decrease">Giảm tồn</option>
                         <option value="increase">Tăng tồn</option>
                     </select>
                 </label>
-                <label>Số lượng {{ form.direction === "decrease" ? "giảm" : "tăng" }}
-                    <input v-model="form.quantity" type="number" min="1" max="2147483647" step="1" inputmode="numeric"
-                        :aria-label="`Số lượng ${form.direction === 'decrease' ? 'giảm' : 'tăng'}`" class="fin-input"
+                <label class="form-group"><span class="form-label">Số lượng {{ form.direction === "decrease" ? "giảm" : "tăng" }}
+                    </span><input v-model="form.quantity" type="number" min="1" max="2147483647" step="1" inputmode="numeric"
+                        :aria-label="`Số lượng ${form.direction === 'decrease' ? 'giảm' : 'tăng'}`" class="form-control"
                         :disabled="!!pending || busy" required />
                 </label>
             </div>
-            <p v-if="fieldErrors.quantity_change" class="fin-error mt-3">
+            <p v-if="fieldErrors.quantity_change" class="mb-5 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600 mt-3">
                 {{ fieldErrors.quantity_change.join(" ") }}
             </p>
-            <label v-if="form.direction === 'decrease'" class="mt-4 block">Nhóm chi phí hao hụt / điều chỉnh
-                <select v-model="form.category" class="fin-input" aria-label="Nhóm chi phí hao hụt / điều chỉnh"
+            <label v-if="form.direction === 'decrease'" class="mt-4 block form-group"><span class="form-label">Nhóm chi phí hao hụt / điều chỉnh
+                </span><select v-model="form.category" class="form-control cursor-pointer disabled:cursor-not-allowed" aria-label="Nhóm chi phí hao hụt / điều chỉnh"
                     :disabled="!!pending || busy" required>
                     <option value="">Chọn nhóm chi phí</option>
                     <option v-for="category in context.categories" :key="category.id" :value="Number(category.id)">
@@ -352,12 +355,12 @@ onBeforeUnmount(() => {
                     </option>
                 </select>
             </label>
-            <p v-if="form.direction === 'decrease' && !context.categories.length" class="fin-warning mt-3">
+            <p v-if="form.direction === 'decrease' && !context.categories.length" class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mt-3">
                 Chưa có nhóm chi phí đang hoạt động. Cần tạo hoặc bật nhóm phù hợp tại
                 Danh mục chi phí.
             </p>
-            <label class="mt-4 block">Lý do điều chỉnh
-                <textarea v-model="form.note" rows="3" maxlength="1000" aria-label="Lý do điều chỉnh" class="fin-input"
+            <label class="mt-4 block form-group"><span class="form-label">Lý do điều chỉnh
+                </span><textarea v-model="form.note" rows="3" maxlength="1000" aria-label="Lý do điều chỉnh" class="form-control resize-y"
                     :disabled="!!pending || busy" placeholder="Ví dụ: kiểm kê phát hiện thiếu 2 gói do bao bì rách"
                     required></textarea>
             </label>
@@ -380,25 +383,26 @@ onBeforeUnmount(() => {
                     <span>Giá vốn / đơn vị của lô</span><strong>{{ money(context.lot.unit_cost, 4) }}</strong>
                 </p>
             </div>
-            <p class="fin-note mt-3">
+            <p class="text-xs leading-5 text-text-light mt-3">
                 Giảm tồn ghi nhận chi phí từ giá vốn lô. Số liệu dự kiến dựa trên lần
                 tải này; máy chủ kiểm tra lại khi ghi sổ.
             </p>
             <ul v-if="
                 problems.length &&
                 (form.quantity !== '' || form.note || !context.stock.consistent)
-            " class="fin-warning mt-4 list-inside list-disc" aria-live="polite">
+            " class="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mt-4 list-inside list-disc" aria-live="polite">
                 <li v-for="problem in problems" :key="problem">{{ problem }}</li>
             </ul>
             <div class="mt-5 flex flex-wrap justify-between gap-3">
-                <button type="button" class="fin-btn" :disabled="busy" @click="loadContext">
+                <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" :disabled="busy" @click="loadContext">
+<Icon icon="solar:refresh-bold" aria-hidden="true" />
                     Tải lại tồn lô
                 </button>
                 <div class="flex gap-2">
-                    <button type="button" class="fin-btn" :disabled="saving || checking" @click="close">
+                    <button type="button" class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed" :disabled="saving || checking" @click="close">
                         Đóng
                     </button>
-                    <button type="submit" class="fin-btn adjustment-submit" :disabled="!canSave">
+                    <button type="submit" class="btn-primary cursor-pointer disabled:cursor-not-allowed" :disabled="!canSave">
                         {{
                             saving
                                 ? "Đang ghi sổ…"
@@ -414,16 +418,10 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
-.fin-btn.adjustment-submit {
-    background: var(--color-primary, #c62828);
-    border-color: var(--color-primary, #c62828);
-    color: white;
-}
-
 .adjustment-heading {
     padding: 14px 16px;
     border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: 12px;
+    border-radius: 16px;
 }
 
 .adjustment-grid {
@@ -433,9 +431,11 @@ onBeforeUnmount(() => {
 }
 
 .adjustment-grid article {
-    padding: 12px;
-    border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: 12px;
+    padding: 16px;
+    border-left: 4px solid var(--color-info, #0284c7);
+    border-radius: 16px;
+    background: var(--color-surface, white);
+    box-shadow: 0 1px 2px rgb(0 0 0 / 5%);
 }
 
 .adjustment-grid span {
@@ -447,12 +447,14 @@ onBeforeUnmount(() => {
 .adjustment-grid strong {
     display: block;
     margin-top: 6px;
-    font-size: 18px;
+    font-size: 24px;
+    font-family: var(--font-mono, ui-monospace, monospace);
+    font-weight: 700;
 }
 
 .adjustment-preview {
     border: 1px solid var(--color-border, #e2e8f0);
-    border-radius: 12px;
+    border-radius: 16px;
     padding: 8px 16px;
 }
 
@@ -461,7 +463,7 @@ onBeforeUnmount(() => {
     justify-content: space-between;
     gap: 16px;
     padding: 7px 0;
-    font-size: 13px;
+    font-size: 14px;
 }
 
 .adjustment-preview strong {

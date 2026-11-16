@@ -8,6 +8,10 @@ import {
   watch,
 } from "vue";
 import { useRoute } from "vue-router";
+import {
+  guidePurposeLabel,
+  guideGrowthStageLabel,
+} from "@/utils/farmGuideLabels";
 import FarmCalculator from "@/components/client/farm/FarmCalculator.vue";
 import { useProductUsageModal } from "@/composables/client/useProductUsageModal";
 import "@/assets/farm-utilities.css";
@@ -53,8 +57,8 @@ function close() {
 function guideLabel(guide) {
   return [
     guide.crop?.name,
-    guide.purpose,
-    guide.growth_stage,
+    guidePurposeLabel(guide),
+    guideGrowthStageLabel(guide),
     guide.application_method,
   ]
     .filter(Boolean)

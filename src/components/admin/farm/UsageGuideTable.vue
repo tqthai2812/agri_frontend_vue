@@ -1,6 +1,11 @@
 <script setup>
 import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/shared/authStore";
+import {
+  guidePurposeLabel,
+  guideGrowthStageLabel,
+  guideContextActive,
+} from "@/utils/farmGuideLabels";
 import { formatRange, hasValue } from "@/utils/farmUsageCalculator";
 defineProps({
   items: { type: Array, required: true },
@@ -65,12 +70,9 @@ const auth = useAuthStore();
             <span class="badge-gray">{{ item.crop?.name }}</span>
           </td>
           <td class="max-w-[250px] p-3 text-sm">
-            <strong class="block">{{ item.purpose }}</strong>
+            <strong class="block">{{ guidePurposeLabel(item) }}</strong>
             <div class="mt-1 text-xs text-text-light">
-              {{ item.application_method
-              }}<template v-if="item.growth_stage">
-                · {{ item.growth_stage }}</template
-              >
+              {{ item.application_method }} · {{ guideGrowthStageLabel(item) }}
             </div>
           </td>
           <td class="p-3 text-xs leading-6">
@@ -115,12 +117,9 @@ const auth = useAuthStore();
               item.is_active ? "Đã bật" : "Bản nháp"
             }}</span>
             <small
-              v-if="
-                item.is_active &&
-                (!item.crop?.is_active || !item.variant?.product?.is_show)
-              "
+              v-if="item.is_active && !guideContextActive(item)"
               class="mt-1 block text-xs text-amber-600"
-              >Cây trồng / sản phẩm đang ẩn</small
+              >Cây trồng / công dụng / giai đoạn / sản phẩm đang ẩn</small
             >
             <small
               v-else-if="item.is_active && !item.can_calculate"

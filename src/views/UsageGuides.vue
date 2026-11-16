@@ -4,6 +4,7 @@ import { Icon } from "@iconify/vue";
 import { useAuthStore } from "@/stores/shared/authStore";
 import FarmService from "@/services/shared/farmUtility.service";
 import { useFarmAdmin } from "@/composables/admin/useFarmAdmin";
+import FarmAdminNav from "@/components/admin/farm/FarmAdminNav.vue";
 import FarmAdminToolbar from "@/components/admin/farm/FarmAdminToolbar.vue";
 import FarmAdminPagination from "@/components/admin/farm/FarmAdminPagination.vue";
 import FarmAdminDialog from "@/components/admin/farm/FarmAdminDialog.vue";
@@ -34,8 +35,9 @@ const {
 } = useFarmAdmin(FarmService.guides, () => ({
   variant_id: "",
   crop_id: "",
-  purpose: "",
-  growth_stage: "",
+  purpose_id: "",
+  growth_stage_scope: "unspecified",
+  growth_stage_ids: [],
   application_method: "",
   dose_unit: "",
   dose_per_ha_min: "",
@@ -54,7 +56,9 @@ onMounted(() => load());
 </script>
 <template>
   <div>
-    <div class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center">
+    <div
+      class="mb-6 flex flex-col items-start justify-between gap-4 sm:flex-row sm:items-center"
+    >
       <div>
         <h1 class="text-2xl font-bold">Quản lý hướng dẫn sử dụng vật tư</h1>
         <p class="text-sm text-text-light">
@@ -68,7 +72,10 @@ onMounted(() => load());
           :disabled="loading"
           @click="load(meta.current_page)"
         >
-          <Icon icon="solar:refresh-bold" :class="loading ? 'animate-spin' : ''" />
+          <Icon
+            icon="solar:refresh-bold"
+            :class="loading ? 'animate-spin' : ''"
+          />
           Tải lại
         </button>
         <button
@@ -82,34 +89,16 @@ onMounted(() => load());
         </button>
       </div>
     </div>
-    <nav class="mb-6 flex flex-wrap gap-2" aria-label="Quản lý tiện ích">
-      <RouterLink
-        v-if="auth.hasPermission('crop.view')"
-        :to="{ name: 'admin-crops' }"
-        class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
-        :class="{
-          '!border-primary !text-primary !bg-primary/5':
-            $route.name === 'admin-crops',
-        }"
-        >Cây trồng</RouterLink
-      >
-      <RouterLink
-        v-if="auth.hasPermission('usage-guide.view')"
-        :to="{ name: 'admin-usage-guides' }"
-        class="btn-outline-sm cursor-pointer disabled:cursor-not-allowed"
-        :class="{
-          '!border-primary !text-primary !bg-primary/5':
-            $route.name === 'admin-usage-guides',
-        }"
-        >Hướng dẫn sử dụng</RouterLink
-      >
-    </nav>
+    <FarmAdminNav />
     <div
       v-if="message"
       role="status"
       class="mb-5 flex items-start gap-3 rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-700"
     >
-      <Icon icon="solar:check-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <Icon
+        icon="solar:check-circle-bold-duotone"
+        class="mt-0.5 shrink-0 text-xl"
+      />
       <span>{{ message }}</span>
     </div>
     <div
@@ -117,13 +106,14 @@ onMounted(() => load());
       role="alert"
       class="mb-5 flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm text-red-600"
     >
-      <Icon icon="solar:danger-circle-bold-duotone" class="mt-0.5 shrink-0 text-xl" />
+      <Icon
+        icon="solar:danger-circle-bold-duotone"
+        class="mt-0.5 shrink-0 text-xl"
+      />
       <span>{{ error }}</span>
     </div>
     <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
-      <FarmAdminToolbar
-        :filters="filters"
-      />
+      <FarmAdminToolbar :filters="filters" />
       <UsageGuideTable
         :items="items"
         :loading="loading"
@@ -165,7 +155,9 @@ onMounted(() => load());
       title="Xác nhận xóa"
       :message="
         deleteTarget
-          ? 'Xóa ' + (deleteTarget.name || deleteTarget.purpose) + '?'
+          ? 'Xóa ' +
+            (deleteTarget.purpose?.name || 'hướng dẫn #' + deleteTarget.id) +
+            '?'
           : ''
       "
       confirm-text="Xóa"

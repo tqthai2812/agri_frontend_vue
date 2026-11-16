@@ -32,6 +32,24 @@ const adminRoutes = [
     meta: { requiresAuth: true, area: "admin" },
     children: [
       {
+        path: "farm-utilities/purposes",
+        name: "admin-product-purposes",
+        component: () => import("@/views/ProductPurposes.vue"),
+        meta: {
+          title: "Công dụng sản phẩm",
+          requiredPermission: "product-purpose.view",
+        },
+      },
+      {
+        path: "farm-utilities/growth-stages",
+        name: "admin-crop-growth-stages",
+        component: () => import("@/views/CropGrowthStages.vue"),
+        meta: {
+          title: "Giai đoạn sinh trưởng",
+          requiredPermission: "crop-growth-stage.view",
+        },
+      },
+      {
         path: "farm-utilities/crops",
         name: "admin-crops",
         component: () => import("@/views/Crops.vue"),

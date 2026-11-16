@@ -1,4 +1,5 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from "vue";
+import { guideContextActive } from "@/utils/farmGuideLabels";
 import FarmService from "@/services/shared/farmUtility.service";
 import { apiError } from "@/utils/farmApi";
 
@@ -59,7 +60,8 @@ export function useProductUsageModal(getProductId, getVariantId) {
         !belongsToVariant(guide) ||
         !active(guide.is_active) ||
         !active(guide.crop?.is_active) ||
-        !active(guide.variant?.product?.is_show)
+        !active(guide.variant?.product?.is_show) ||
+        !guideContextActive(guide)
       ) {
         throw new Error(
           "Hướng dẫn không thuộc biến thể đang chọn hoặc đã bị ẩn. Hãy tải lại danh sách.",

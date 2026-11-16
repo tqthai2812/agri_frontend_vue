@@ -25,6 +25,12 @@ function resource(path) {
 export default {
   crops: resource("/crops"),
   guides: resource("/usage-guides"),
+  purposes: resource("/purposes"),
+  growthStages: resource("/growth-stages"),
+  purposeOptions: (params = {}, signal) =>
+    apiClient.get(adminBase + "/options/purposes", { params, signal }),
+  growthStageOptions: (params = {}, signal) =>
+    apiClient.get(adminBase + "/options/growth-stages", { params, signal }),
   cropOptions: (params = {}, signal) =>
     apiClient.get(adminBase + "/options/crops", { params, signal }),
   variantOptions: (params = {}, signal) =>

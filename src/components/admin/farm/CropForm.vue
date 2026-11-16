@@ -1,5 +1,6 @@
 <script setup>
 import { Icon } from "@iconify/vue";
+import FarmAliasesField from "./FarmAliasesField.vue";
 defineProps({
   form: { type: Object, required: true },
   busy: Boolean,
@@ -19,14 +20,20 @@ function slugify(text) {
 <template>
   <form class="space-y-6" @submit.prevent="$emit('submit')">
     <fieldset :disabled="busy" class="min-w-0 space-y-6">
-      <section class="rounded-2xl border border-border bg-surface p-5 shadow-sm">
+      <section
+        class="rounded-2xl border border-border bg-surface p-5 shadow-sm"
+      >
         <div class="mb-5">
           <h3 class="text-lg font-bold">Thông tin cây trồng</h3>
-          <p class="text-sm text-text-light">Tên, đường dẫn và trạng thái hiển thị của cây trồng.</p>
+          <p class="text-sm text-text-light">
+            Tên, đường dẫn và trạng thái hiển thị của cây trồng.
+          </p>
         </div>
         <div class="space-y-4">
           <label class="form-group">
-            <span class="form-label">Tên cây trồng <span class="text-red-600">*</span></span>
+            <span class="form-label"
+              >Tên cây trồng <span class="text-red-600">*</span></span
+            >
             <input
               v-model="form.name"
               required
@@ -34,12 +41,16 @@ function slugify(text) {
               class="form-control"
               @blur="!form.slug && (form.slug = slugify(form.name))"
             />
-            <small v-if="errors.name" class="text-xs font-normal text-red-600">{{
-              errors.name[0]
-            }}</small>
+            <small
+              v-if="errors.name"
+              class="text-xs font-normal text-red-600"
+              >{{ errors.name[0] }}</small
+            >
           </label>
           <label class="form-group">
-            <span class="form-label">Đường dẫn <span class="text-red-600">*</span></span>
+            <span class="form-label"
+              >Đường dẫn <span class="text-red-600">*</span></span
+            >
             <input
               v-model="form.slug"
               required
@@ -48,22 +59,31 @@ function slugify(text) {
               class="form-control"
               placeholder="ten-cay-trong"
             />
-            <small v-if="errors.slug" class="text-xs font-normal text-red-600">{{
-              errors.slug[0]
-            }}</small>
+            <small
+              v-if="errors.slug"
+              class="text-xs font-normal text-red-600"
+              >{{ errors.slug[0] }}</small
+            >
           </label>
+          <FarmAliasesField v-model="form.aliases" :errors="errors" />
           <label class="flex cursor-pointer items-center gap-2 text-sm"
-            ><input v-model="form.is_active" type="checkbox" class="size-4 cursor-pointer accent-[#07532b] disabled:cursor-not-allowed" /> Hiển thị cây
-            trồng</label
+            ><input
+              v-model="form.is_active"
+              type="checkbox"
+              class="size-4 cursor-pointer accent-[#07532b] disabled:cursor-not-allowed"
+            />
+            Hiển thị cây trồng</label
           >
           <p class="rounded-xl bg-bg p-3 text-xs leading-5 text-text-light">
-            Tắt hiển thị cây trồng sẽ ẩn các hướng dẫn liên quan khỏi tiện ích phía
-            khách hàng. Các hướng dẫn vẫn được lưu.
+            Tắt hiển thị cây trồng sẽ ẩn các hướng dẫn liên quan khỏi tiện ích
+            phía khách hàng. Các hướng dẫn vẫn được lưu.
           </p>
         </div>
       </section>
     </fieldset>
-    <div class="flex flex-col justify-end gap-3 border-t border-border pt-4 sm:flex-row">
+    <div
+      class="flex flex-col justify-end gap-3 border-t border-border pt-4 sm:flex-row"
+    >
       <button
         type="button"
         :disabled="busy"

@@ -1,6 +1,7 @@
 <script setup>
 import ClientHeader from "./ClientHeader.vue";
 import ClientFooter from "./ClientFooter.vue";
+import AiChatWidget from "@/components/client/ai/AiChatWidget.vue";
 </script>
 
 <template>
@@ -12,5 +13,6 @@ import ClientFooter from "./ClientFooter.vue";
     </main>
 
     <ClientFooter />
+    <AiChatWidget />
   </div>
 </template>

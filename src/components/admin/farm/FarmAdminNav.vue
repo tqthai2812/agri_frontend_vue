@@ -4,6 +4,7 @@ import { useAuthStore } from "@/stores/shared/authStore";
 const auth = useAuthStore();
 const router = useRouter();
 const links = [
+  ["admin-ai-knowledge", "Dữ liệu trợ lý AI", "ai-knowledge.view"],
   ["admin-crops", "Cây trồng", "crop.view"],
   ["admin-product-purposes", "Công dụng", "product-purpose.view"],
   [

@@ -32,6 +32,15 @@ const adminRoutes = [
     meta: { requiresAuth: true, area: "admin" },
     children: [
       {
+        path: "farm-utilities/ai-knowledge",
+        name: "admin-ai-knowledge",
+        component: () => import("@/views/AiKnowledge.vue"),
+        meta: {
+          title: "Dữ liệu trợ lý AI",
+          requiredPermission: "ai-knowledge.view",
+        },
+      },
+      {
         path: "farm-utilities/purposes",
         name: "admin-product-purposes",
         component: () => import("@/views/ProductPurposes.vue"),
